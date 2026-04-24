@@ -401,12 +401,13 @@ MEAN_CHH=$(mean_meth "$WORK/counts.CHH.tsv")
 # FASTQ file size (bytes), sum for PE
 FASTQ_SIZE=$(du -sb "$FASTQ_FWD" ${FASTQ_REV:+"$FASTQ_REV"} 2>/dev/null | awk '{s+=$1} END {print s+0}')
 
-# Write extended stats TSV: upstream 11+1 columns (cols 12-14 empty) plus
-# 3 plant-fork columns: mean_cpg, mean_chg, mean_chh (cols 13-15 in this fork).
-# Format: sample layout fastq_size dedup_bam_size read_count mapping_rate
-#         meth_rate cpg_coverage hmr_count pmd_count hypermr_count [empty x3]
-#         elapsed_min mean_cpg mean_chg mean_chh
-printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t\t%s\t%s\t%s\t%s\n' \
+# Write stats TSV: 15 contiguous columns matching the report generator's key list.
+# Cols 1-11:  sample layout fastq_size dedup_bam_size read_count mapping_rate
+#             meth_rate cpg_coverage hmr_count pmd_count hypermr_count
+# Col  12:    elapsed_min
+# Cols 13-15: mean_cpg mean_chg mean_chh  (plant-fork additions; replace the
+#             three empty padding cols that upstream BS-seq leaves here)
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "$SAMPLE_ID" "$LAYOUT_FLAG" "$FASTQ_SIZE" "$DEDUP_BAM_SIZE" \
   "$READ_COUNT" "$MAP_RATE" "$METH_RATE" "$CPG_COVERAGE" \
   "$HMR_N" "$PMD_N" "$HYPERMR_N" "$TOTAL_MIN" \
