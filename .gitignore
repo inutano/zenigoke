@@ -1,0 +1,18 @@
+# Claude Code local settings (per-machine)
+.claude/settings.local.json
+
+# Large binary data lives outside the repo, but if anything leaks in:
+/data1/
+*.bam
+*.bw
+*.bb
+*.fastq
+*.fastq.gz
+*.fa
+*.fa.fai
+*.abismal.idx
+
+# Scratch / logs
+tmp/
+logs/
+report/*.html
