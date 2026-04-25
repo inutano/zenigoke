@@ -1,0 +1,24 @@
+{
+  "fields": {
+    "developmental_stage": {
+      "ontology_file": null,
+      "prompt_description": "The developmental stage of the Marchantia polymorpha sample. Typical values include: thallus (vegetative body), gemma (asexual propagule), gemmaling (young thallus from gemma), antheridiophore (male reproductive organ), archegoniophore (female reproductive organ), sporophyte, spore, protonema. Use the most specific stage described; return null if not stated.",
+      "value_type": "string"
+    },
+    "genotype_strain": {
+      "ontology_file": null,
+      "prompt_description": "The genotype or strain identifier of the Marchantia polymorpha sample. Common strains: Tak-1 (male), Tak-2 (female), Cam-1, Cam-2, BR5, SA2. Mutant lines often include a gene name and allele number (e.g., Mpgs1-1, Mparf1-ko). Return the most specific strain or genotype stated; null if not present.",
+      "value_type": "string"
+    },
+    "treatment": {
+      "ontology_file": null,
+      "prompt_description": "The experimental treatment applied to the sample. Common categories: hormone (auxin, cytokinin, ABA, GA), light (far-red, blue, red, darkness), stress (heat, cold, drought, osmotic), mock/control, untreated. Return a short phrase summarizing the treatment or 'control' if explicitly a control; null otherwise.",
+      "value_type": "string"
+    },
+    "antibody_target": {
+      "ontology_file": null,
+      "prompt_description": "For ChIP-Seq experiments only: the target protein or histone modification of the antibody used. Examples: H3K4me3, H3K27me3, H3K9me2, MpGCAM1, MpTCP1, RNA Pol II, input (for input controls). Return the target name verbatim; null for non-ChIP samples or when the target is not stated.",
+      "value_type": "string"
+    }
+  }
+}
