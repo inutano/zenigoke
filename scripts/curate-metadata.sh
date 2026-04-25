@@ -92,7 +92,7 @@ while IFS=, read -r strategy accession; do
   # Convert ENA XML → bsllmner-mk2 JSON format.
   # Shape: {accession, title, characteristics: {key: [{text: value}]}}
   # This matches the example_biosample.json structure that bsllmner-mk2 expects.
-  python3 - "$biosample" "$accession" "$xml_path" "$out" <<'PY'
+  if ! python3 - "$biosample" "$accession" "$xml_path" "$out" <<'PY'
 import sys, json, xml.etree.ElementTree as ET
 
 biosample_acc, exp_acc, xml_path, out_path = sys.argv[1:5]
@@ -135,9 +135,10 @@ with open(out_path, "w") as f:
     json.dump(entry, f, indent=2)
 print(f"  wrote {out_path}")
 PY
-  if [ $? -ne 0 ]; then
+  then
     log "  WARN: JSON conversion failed for $accession — skipping"
     rm -f "$xml_path" "$out"
+    continue
   fi
 
 done < "$CSV"
