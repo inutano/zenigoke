@@ -85,7 +85,14 @@ case "$STRATEGY" in
       --threads "$THREADS"
     )
     [ -n "$REV" ] && ARGS+=( --fastq-rev "$REV" )
-    bash "$PIPELINES_REPO/scripts/pipeline-v2.sh" "${ARGS[@]}"
+    docker run --rm \
+      -v "$DATA_ROOT:$DATA_ROOT" \
+      -v "$PIPELINES_REPO:$PIPELINES_REPO:ro" \
+      -e TMPDIR="$TMP_DIR" \
+      -v "$TMP_DIR:$TMP_DIR" \
+      --user "$(id -u):$(id -g)" \
+      "$CHIP_IMG" \
+      bash "$PIPELINES_REPO/scripts/pipeline-v2.sh" "${ARGS[@]}"
     ;;
 
   Bisulfite-Seq)
@@ -102,7 +109,14 @@ case "$STRATEGY" in
       --threads "$THREADS"
     )
     [ -n "$REV" ] && ARGS+=( --fastq-rev "$REV" )
-    bash "$ZENIGOKE_REPO/scripts/pipeline-v2-bs-plant.sh" "${ARGS[@]}"
+    docker run --rm \
+      -v "$DATA_ROOT:$DATA_ROOT" \
+      -v "$ZENIGOKE_REPO:$ZENIGOKE_REPO:ro" \
+      -e TMPDIR="$TMP_DIR" \
+      -v "$TMP_DIR:$TMP_DIR" \
+      --user "$(id -u):$(id -g)" \
+      "$BS_IMG" \
+      bash "$ZENIGOKE_REPO/scripts/pipeline-v2-bs-plant.sh" "${ARGS[@]}"
     ;;
 
   *)
