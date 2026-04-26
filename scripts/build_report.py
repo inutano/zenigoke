@@ -94,7 +94,9 @@ def collect_samples(
     csv_strategies: dict[str, str] = {}
     if csv_path and csv_path.exists():
         with csv_path.open() as fh:
-            reader = csv.DictReader(fh)
+            # Skip leading blank lines before passing to DictReader
+            lines = (line for line in fh if line.strip())
+            reader = csv.DictReader(lines)
             for row in reader:
                 csv_strategies[row["experiment_accession"]] = row["library_strategy"]
 
