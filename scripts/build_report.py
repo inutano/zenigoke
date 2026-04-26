@@ -133,9 +133,17 @@ def collect_samples(
                 sample.update(_bsseq_stats_fields(stats))
 
         curated_path = curated_dir / f"{acc}.json"
-        sample["curated"] = (
-            json.loads(curated_path.read_text()) if curated_path.exists() else {}
-        )
+        if curated_path.exists():
+            raw_curated = json.loads(curated_path.read_text())
+            # bsllmner SelectResult shape: {extract: {extracted: {field: value}}}
+            # Fall back to top-level dict for forward compatibility.
+            extracted = (
+                raw_curated.get("extract", {}).get("extracted")
+                or raw_curated
+            )
+            sample["curated"] = extracted if isinstance(extracted, dict) else {}
+        else:
+            sample["curated"] = {}
         samples.append(sample)
 
     return samples

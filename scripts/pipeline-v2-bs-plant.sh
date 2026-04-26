@@ -297,6 +297,16 @@ PID_CpG_BIGWIG=$!
 
 # ---- CHG: hmr + hypermr + BigWig (parallel; no sym, no pmd) ----
 # CHG per-strand counts feed directly into hmr/hypermr.
+#
+# NOTE (Issue D): CHG.hmr.bed fails consistently on Marchantia samples.
+# dnmtools hmr requires symmetrized (strand-merged) counts, but CHG symmetrization
+# was intentionally skipped in this plant fork (spec prescribed hmr on raw CHG counts,
+# which dnmtools rejects).  The wait below catches the failure with "WARNING: CHG hmr
+# failed" and the pipeline continues.  The spec table (CHG: hmr + hypermr + BigWig)
+# needs updating to reflect that CHG hmr is not reliably producible without
+# sym — or a CHG-specific symmetrization step should be added.
+# Leave the call here so future dnmtools versions or samples with different CHG
+# density may still succeed.
 (dnmtools hmr \
     -o "$OUTDIR/${SAMPLE_ID}.CHG.hmr.bed" \
     "$WORK/counts.CHG.tsv" \
