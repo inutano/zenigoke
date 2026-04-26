@@ -241,19 +241,19 @@ log "Step 2 done: $((STEP2_END - STEP2_START))s"
 # ============================================================
 # Step 3: Per-context fan-out (plant fork — replaces upstream Step 3)
 #
-# Context classification (dnmtools 1.5.x): column 4 is the methylation context.
-# Values are typically the 3-letter trinucleotide context strings: CpG (or CG),
-# CHG (CCG, CAG, CTG), CHH (CCA, CCC, CCT, CAA, CAC, CAT, CTA, CTC, CTT).
-# We match literally: $4=="CpG" for CpG, $4=="CHG" for CHG, $4=="CHH" for CHH.
-# If a future dnmtools version emits trinucleotide expansions (e.g. "CCG" instead
-# of "CHG"), change the awk filters below to use regex: $4~/^CH[GH]/ etc.
+# Context classification (dnmtools 1.5.1): column 4 is the methylation context.
+# Verified empirically against DRX162964 (Marchantia BS-seq, 2026-04-25):
+#   CpG → "CpG"   CHG → "CXG"   CHH → "CHH"
+# (note CXG, not CHG — dnmtools' 3-letter encoding for the H-context on the +
+# strand of CHG sites; the symmetric pair appears as CXG on both strands.)
+# Output filenames use the user-facing CHG label.
 # ============================================================
 log "Step 3 (plant): split by context, per-context hmr/hypermr/pmd/BigWig"
 STEP3_START=$(date +%s)
 
 # Split counts.tsv into per-context files (all three must exist before parallel jobs)
 awk -F'\t' '$4 == "CpG"' "$WORK/counts.tsv" > "$WORK/counts.CpG.tsv"
-awk -F'\t' '$4 == "CHG"' "$WORK/counts.tsv" > "$WORK/counts.CHG.tsv"
+awk -F'\t' '$4 == "CXG"' "$WORK/counts.tsv" > "$WORK/counts.CHG.tsv"
 awk -F'\t' '$4 == "CHH"' "$WORK/counts.tsv" > "$WORK/counts.CHH.tsv"
 log "  context split: CpG=$(wc -l < "$WORK/counts.CpG.tsv") CHG=$(wc -l < "$WORK/counts.CHG.tsv") CHH=$(wc -l < "$WORK/counts.CHH.tsv") sites"
 
