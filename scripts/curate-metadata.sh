@@ -69,9 +69,12 @@ while IFS=, read -r strategy accession; do
   log "  fetching $accession ..."
 
   # SRX/DRX/ERX → sample_accession (SAMN/SAMEA/SAMD)
+  # ENA filereport returns TWO columns even when only sample_accession is requested:
+  #   col1=run_accession  col2=sample_accession
+  # We must extract col2 (sample_accession, the SAMN*/SAMEA*/SAMD* BioSample ID).
   biosample=$(curl -fsSL \
     "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${accession}&result=read_run&fields=sample_accession&format=tsv" \
-    2>>"$LOG" | awk 'NR==2{print $1}' || true)
+    2>>"$LOG" | awk 'NR==2{print $2}' || true)
 
   if [ -z "$biosample" ]; then
     log "  WARN: no biosample for $accession — skipping"
@@ -188,10 +191,32 @@ plants_config="$BSLLMNER_REPO/scripts/select-config-plants.json"
 zenigoke_config="$(cd "$(dirname "$0")/.." && pwd)/configs/select-config-zenigoke.json"
 merged_host="${BSLLMNER_REPO}/tmp_zenigoke_select_config_merged.json"
 
+# KNOWN LIMITATION — Issue C (ontology subset OWL files not built):
+# select-config-plants.json references ontology/po_tissue_subset.owl and
+# ontology/po_cell_subset.owl.  Building these requires:
+#   1. Downloading full upstream OWLs (po.owl, cl.owl, etc.) via
+#      scripts/download_ontology_files.py  (~GB-scale files)
+#   2. Running scripts/build_subset_ontologies.sh (uses obolibrary/robot Docker)
+# This is heavy and not done in the current pipeline run.
+# When the OWL files are absent, bsllmner-mk2 will skip ontology matching for
+# tissue/cell_type and fall through to Stage 3 LLM-only extraction, which still
+# produces output.  We null out the ontology_file paths in the merged config so
+# bsllmner-mk2 doesn't error on missing files — it will use LLM extraction only.
+# TODO: run download + build_subset_ontologies.sh before the final production run
+#       to enable full ontology-backed term matching.
 if command -v jq >/dev/null 2>&1; then
-  jq -s '.[0].fields * .[1].fields | {fields: .}' \
-    "$plants_config" "$zenigoke_config" > "$merged_host"
-  log "  merged config written to $merged_host (jq)"
+  jq -s '
+    .[0].fields * .[1].fields
+    # Null out ontology_file paths where the OWL file does not exist on disk.
+    # This lets bsllmner-mk2 fall back to LLM-only extraction rather than aborting.
+    | with_entries(
+        if .value.ontology_file != null then
+          .value.ontology_file = null
+        else . end
+      )
+    | {fields: .}
+  ' "$plants_config" "$zenigoke_config" > "$merged_host"
+  log "  merged config written to $merged_host (jq; ontology_file paths nulled — OWLs not built)"
 else
   # Fallback: Python merge (stdlib)
   python3 - "$plants_config" "$zenigoke_config" "$merged_host" <<'PY'
@@ -200,11 +225,14 @@ p, z, out = sys.argv[1], sys.argv[2], sys.argv[3]
 plants = json.load(open(p))
 zenigoke = json.load(open(z))
 merged = {"fields": {**plants["fields"], **zenigoke["fields"]}}
+# Null out ontology_file paths — OWL files not built yet (Issue C)
+for v in merged["fields"].values():
+    v["ontology_file"] = None
 with open(out, "w") as f:
     json.dump(merged, f, indent=2)
-print(f"merged config -> {out} ({len(merged['fields'])} fields)")
+print(f"merged config -> {out} ({len(merged['fields'])} fields); ontology_file paths nulled")
 PY
-  log "  merged config written to $merged_host (python)"
+  log "  merged config written to $merged_host (python; ontology_file paths nulled — OWLs not built)"
 fi
 
 # Stand up bsllmner-mk2 via docker compose
@@ -214,8 +242,15 @@ log "  starting bsllmner-mk2 container ..."
 # Run bsllmner2_select inside the container.
 # The repo dir is bind-mounted at /app, so our tmp files are accessible there.
 # Results land at: /app/bsllmner2-results/select/select_${RUN_NAME}.json
+#
+# OLLAMA_HOST: the compose stack's own ollama service has no models pulled.
+# We point the app at the HOST Ollama via the Docker bridge gateway (172.17.0.1).
+# Confirmed by: docker network inspect bridge | grep Gateway
+# → "Gateway": "172.17.0.1"  (Linux default bridge, stable on this host)
 log "  running bsllmner2_select (model=$OLLAMA_MODEL, run=$RUN_NAME) ..."
-(cd "$BSLLMNER_REPO" && docker compose exec -T app \
+(cd "$BSLLMNER_REPO" && docker compose exec -T \
+  -e OLLAMA_HOST="http://172.17.0.1:11434" \
+  app \
   bsllmner2_select \
     --bs-entries "$CONTAINER_INPUT" \
     --select-config "$CONTAINER_CONFIG" \
@@ -240,6 +275,7 @@ log "== stage 3: split output to $CURATED_DIR =="
 
 python3 - "$result_file" "$BIOSAMPLES_DIR" "$CURATED_DIR" <<'PY'
 import json, os, sys
+from collections import defaultdict
 
 result_file, biosamples_dir, curated_dir = sys.argv[1], sys.argv[2], sys.argv[3]
 os.makedirs(curated_dir, exist_ok=True)
@@ -247,9 +283,11 @@ os.makedirs(curated_dir, exist_ok=True)
 data = json.load(open(result_file))
 entries = data.get("entries", [])
 
-# Build a reverse map: biosample_accession -> experiment_accession
-# (stored as _experiment_accession in our input JSONs)
-bs_to_exp = {}
+# Build a reverse map: biosample_accession -> [experiment_accession, ...]
+# Multiple experiments can share the same BioSample (e.g. ChIP-Seq input + IP
+# from the same biological material).  We write the curated result for every
+# experiment so downstream code always finds SRX*.json / DRX*.json in curated/.
+bs_to_exps = defaultdict(list)
 for f in os.listdir(biosamples_dir):
     if not f.endswith(".json"):
         continue
@@ -258,7 +296,7 @@ for f in os.listdir(biosamples_dir):
         exp_acc = rec.get("_experiment_accession", "")
         bs_acc = rec.get("accession", "")
         if exp_acc and bs_acc:
-            bs_to_exp[bs_acc] = exp_acc
+            bs_to_exps[bs_acc].append(exp_acc)
     except Exception:
         pass
 
@@ -271,12 +309,14 @@ for entry in entries:
         print(f"WARN: entry has no accession, skipping", file=sys.stderr)
         continue
 
-    # Prefer experiment accession for the filename so downstream code matches CSV
-    exp_acc = bs_to_exp.get(bs_acc, bs_acc)
-    out_path = os.path.join(curated_dir, f"{exp_acc}.json")
-    with open(out_path, "w") as fh:
-        json.dump(entry, fh, indent=2)
-    written += 1
+    # Write a curated file for every experiment that maps to this biosample.
+    # (Most biosamples have exactly one experiment; shared biosamples get copies.)
+    exp_accs = bs_to_exps.get(bs_acc) or [bs_acc]
+    for exp_acc in exp_accs:
+        out_path = os.path.join(curated_dir, f"{exp_acc}.json")
+        with open(out_path, "w") as fh:
+            json.dump(entry, fh, indent=2)
+        written += 1
 
 print(f"wrote {written} curated files to {curated_dir}")
 PY
