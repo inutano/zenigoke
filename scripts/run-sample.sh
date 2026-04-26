@@ -64,7 +64,7 @@ FASTQS=( "$FASTQ_DIR"/*.fastq.gz )
 FWD=$(ls "$FASTQ_DIR"/*_1.fastq.gz "$FASTQ_DIR"/*_1.fastq 2>/dev/null | head -1 || true)
 REV=$(ls "$FASTQ_DIR"/*_2.fastq.gz "$FASTQ_DIR"/*_2.fastq 2>/dev/null | head -1 || true)
 if [ -z "$FWD" ]; then
-  FWD=$(ls "$FASTQ_DIR"/*.fastq.gz "$FASTQ_DIR"/*.fastq 2>/dev/null | head -1)
+  FWD=$(ls "$FASTQ_DIR"/*.fastq.gz "$FASTQ_DIR"/*.fastq 2>/dev/null | head -1 || true)
 fi
 echo "   fwd=$FWD  rev=${REV:-<SE>}"
 
