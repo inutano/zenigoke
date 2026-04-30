@@ -34,14 +34,29 @@ RUN_INFO=$(curl -fsSL \
 
 [ -z "$RUN_INFO" ] && { echo "ERROR: ENA returned no runs for $ACCESSION"; exit 2; }
 
-# Download every URL listed in fastq_ftp; rename to a single SE file in FASTQ_DIR.
-# (One run, one file is the expected case for this fallback.)
+# Download every URL listed in fastq_ftp. ENA HTTPS connections drop
+# mid-transfer often enough that curl with --retry alone is unreliable —
+# aria2c with multi-segment + retry handles it.
 while IFS=$'\t' read -r run layout ftp; do
   [ -z "$ftp" ] && { echo "ERROR: empty fastq_ftp for $run"; exit 3; }
   for url in $(echo "$ftp" | tr ';' ' '); do
     fname=$(basename "$url")
     echo "  downloading https://${url}"
-    curl -fsSL --retry 3 --retry-delay 5 -o "$FASTQ_DIR/$fname" "https://${url}"
+    aria2c \
+      --max-tries=10 \
+      --retry-wait=10 \
+      --connect-timeout=30 \
+      --timeout=60 \
+      --max-connection-per-server=4 \
+      --split=4 \
+      --continue=true \
+      --auto-file-renaming=false \
+      --allow-overwrite=true \
+      --console-log-level=warn \
+      --summary-interval=30 \
+      --dir="$FASTQ_DIR" \
+      --out="$fname" \
+      "https://${url}"
   done
 done <<< "$RUN_INFO"
 
