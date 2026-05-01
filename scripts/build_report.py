@@ -60,12 +60,15 @@ def _strategy_from_output(output_root: pathlib.Path, acc: str) -> str | None:
 
 
 def _chipseq_stats_fields(row: list[str]) -> dict[str, str]:
-    # Upstream pipeline-v2.sh stats.tsv is 15 columns; see pipeline README.
+    # Upstream pipeline-v2.sh stats.tsv is 15 contiguous columns. The plan's
+    # original key list missed the `reads_mapped` count between `reads_filt`
+    # and `mapping_rate`, which made every column from `mapping_rate` onward
+    # land on the wrong key. Verified empirically against SRX29617444 stats.
     keys = [
         "sample", "layout", "fastq_size", "reads_raw", "reads_filt",
-        "mapping_rate", "duplication_rate", "dedup_bam_size",
-        "bedgraph_size", "bigwig_size", "peaks_q5", "peaks_q10",
-        "peaks_q20", "elapsed_min", "extra",
+        "reads_mapped", "mapping_rate", "duplication_rate",
+        "dedup_bam_size", "bedgraph_size", "bigwig_size",
+        "peaks_q5", "peaks_q10", "peaks_q20", "elapsed_min",
     ]
     return {k: v for k, v in zip(keys, row)}
 
