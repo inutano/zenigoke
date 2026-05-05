@@ -1,107 +1,101 @@
-# Morning brief — kknmsmd Phase 1
+# Phase 1 — final summary
 
-Phase 1 implementation complete. The full pipeline run is running in
-background. This file is for the morning check-in.
+Phase 1 of the kknmsmd / zenigoke project is complete.
 
-## What was done overnight
+## Final tally
 
-All 9 tasks of the Phase 1 plan are complete or running.
-
-| Task | Status | Notes |
-|------|--------|-------|
-| 1. bootstrap.sh | ✅ | data dirs + docker images pulled |
-| 2. prepare-marchantia.sh | ✅ | MpTak v7.1 + bwa-mem2/abismal indexes |
-| 3. pipeline-v2-bs-plant.sh | ✅ | plant fork (CpG/CHG/CHH, CXG bug fixed) |
-| 4. run-sample.sh | ✅ | docker-wrapped, SE/PE detect, cleanup trap |
-| 5. run-all.sh | ✅ | --resume / --only / --library-strategy |
-| 6. curate-metadata.sh | ✅ | BioSample fetch + bsllmner-mk2 Select |
-| 7. build_report.py | ✅ | TDD, 4/4 tests pass |
-| 8. 3-sample validation | ✅ | ChIP/ATAC/BS-seq all OK; curation produces non-null metadata |
-| 9. full 154-sample run | 🔄 | running in background, PID 2081329 |
-
-## Bugs found and fixed during validation
-
-Five fixes during Task 8, all on `feature/phase1-impl`:
-- `e6276a8` — wrap pipeline invocations in `docker run`
-- `58783e6` — match `CXG` (not `CHG`) for the CHG context in dnmtools 1.5.1
-- `027c3b8` — add `|| true` to SE FASTQ fallback `ls`
-- `ee3f430` — skip leading blank line in CSV in build_report.py
-- `95b849f` — extract `sample_accession` from col 2 (not col 1) of ENA filereport
-- `27439e1` — CHG hmr limitation note + curated path fix in build_report.py
-
-## Known limitations (non-blocking)
-
-1. **CHG.hmr.bed consistently missing.** dnmtools `hmr` fails on CHG context for
-   Marchantia samples. Pipeline catches it with a warning and continues. The
-   spec table prescribed `hmr` for CHG; reality says it doesn't run without
-   symmetrization. Worth revisiting in Phase 2.
-2. **bsllmner-mk2 ontology subset OWLs not built.** `po_tissue_subset.owl` /
-   `po_cell_subset.owl` would need a multi-GB upstream PO download. The
-   curation script currently nulls `ontology_file` paths at runtime, falling
-   through to LLM-only extraction. Tissue/cell_type strings still get extracted
-   (just not formally PO-mapped).
-3. **9.16% mapping rate on DRX162964 (BS-seq).** Plant samples often have
-   abundant organellar/repeat reads that lower this. Not investigated.
-4. **MACS3 effective genome size = 248042180** for MpTak v7.1 standard genome.
-
-## Monitor the background run
-
-```bash
-# Live progress
-tail -f /data1/zenigoke/run-all-full.log
-
-# Check the running PID
-ps -p 2081329 || echo "(no longer running)"
-
-# Status counters at a glance
-ls /data1/zenigoke/status/*.ok 2>/dev/null | wc -l    # succeeded
-ls /data1/zenigoke/status/*.failed 2>/dev/null | wc -l # failed
-
-# Per-sample log for any failure
-ls /data1/zenigoke/status/*.failed 2>/dev/null | head
-cat /data1/zenigoke/status/<accession>.failed
-cat /data1/zenigoke/logs/<accession>.log | tail -50
+```
+ChIP-Seq         89 / 90     (1 fail — SRX29617452, malformed source data)
+ATAC-Seq         36 / 36     (100%)
+Bisulfite-Seq    31 / 31     (100%)
+─────────────────────────────────
+total           156 / 157     99.4%
 ```
 
-Estimated wall-clock for the remaining 154 samples: 12-16 hours.
+## What's on disk
 
-## After the pipeline run completes
+| | path | size |
+|---|---|---|
+| Pipeline outputs | `/data1/zenigoke/output/` | 37 GB |
+| MpTak v7.1 reference + indexes | `/data1/zenigoke/references/MpTak_v7.1/` | 2.3 GB |
+| Per-sample status markers | `/data1/zenigoke/status/*.{ok,failed}` | tiny |
+| Per-sample logs | `/data1/zenigoke/logs/*.log` | small |
+| Curated metadata (157 samples) | `~/work/zenigoke/metadata/curated/` | ~5 MB |
+| BioSample dumps | `~/work/zenigoke/metadata/biosamples/` | ~2 MB |
+| Phase 1 HTML report | `~/work/zenigoke/report/phase1-summary.html` | 30 KB |
+
+`/data1` free: 673 GB.
+
+## Curation coverage (qwen3.5:27b on 157 BioSamples, 6 min)
+
+| Field | Coverage |
+|---|---|
+| `genotype_strain` | 100% (Tak-1 dominant; some Tak-2, Cam-*) |
+| `developmental_stage` | 92% |
+| `tissue` | 56% (mostly thallus; some gemmaling, archegoniophore) |
+| `treatment` | 19% |
+| `antibody_target` | 0% (BioSample text doesn't carry antibody — see limitation 1) |
+
+## Known limitations
+
+1. **`antibody_target` not extractable from BioSample.** Antibody info lives in
+   the SRA Experiment record, not BioSample. To fill this in Phase 2, also
+   fetch SRX `experiment_xml` and run a separate extract.
+2. **CHG `hmr` consistently missing for BS-seq.** dnmtools `hmr` is
+   designed for CpG and fails on CHG without symmetrization. Pipeline
+   handles gracefully (logs warning, continues); spec table needs updating.
+3. **bsllmner-mk2 ontology subset OWLs not built.** Falls through to
+   LLM-only extraction. To get formal PO term IDs in Phase 2, run
+   `~/repos/bsllmner-mk2/scripts/build_subset_ontologies.sh`.
+4. **`SRX29617452` malformed source data.** 39M reads, all 50bp, names
+   ending in `/1` (BBMap-style), but bwa-mem2 produces SAM that samtools
+   rejects with "SEQ and QUAL of different length". Two retries hit the
+   same wall. Documented as data integrity issue from submitter.
+
+## Bugs found and fixed during execution
+
+Across the full run, 9 fixes ended up on `feature/phase1-impl`. The
+notable ones:
+
+- `e6276a8` — wrap pipeline invocations in `docker run` (host bash crashed
+  immediately because tools live only in containers).
+- `58783e6` — dnmtools 1.5.1 emits `CXG` (not `CHG`) for the CHG context.
+- `95b849f` — ENA filereport TSV puts sample_accession in col 2, not col 1.
+- `f5dd3af` — `_chipseq_stats_fields` was missing the `reads_mapped` column,
+  shifting every downstream key by one in the report.
+- `ae4c77c` / `f0c1f0b` — `retry-pe-fallback.sh` for the ENA
+  "PAIRED-but-single-file" edge case (12 ChIP-Seq samples were affected).
+
+Full list: `git log --oneline main..feature/phase1-impl`.
+
+## Branch state — ready to merge
+
+19 commits ahead of `main` on `feature/phase1-impl`. When you're ready:
 
 ```bash
-# Run curation on all 157 BioSamples (idempotent — skips already-fetched)
-cd /home/inutano/work/zenigoke
-bash scripts/curate-metadata.sh 2>&1 | tee metadata/curation-full.log
-
-# Build the final report
-python3 scripts/build-report.py
-ls -lh report/phase1-summary.html
-xdg-open report/phase1-summary.html  # or open in your browser
-```
-
-## Branch state
-
-All implementation lives on `feature/phase1-impl`. The spec + plan are on
-`main`. Total: 17 commits ahead of main on the feature branch.
-
-```bash
-git log --oneline main..feature/phase1-impl
-```
-
-When you're satisfied with Phase 1 outputs, merge to main:
-
-```bash
+cd ~/work/zenigoke
 git checkout main
 git merge --no-ff feature/phase1-impl -m "Phase 1: pipelines + curation + report on Marchantia"
-git tag -a phase1-complete -m "Phase 1: 154 samples processed (+ 3 validation)"
+git tag -a phase1-complete -m "Phase 1: 156/157 samples processed"
 ```
 
-## Phase 2 starting points (when you're ready to discuss)
+## Phase 2 starting points
 
-Per spec §10 and Task 9 of the plan, things that were intentionally deferred:
-- DB schema (SQL or otherwise) — what queries do you actually want?
-- Web UI / API — read-only catalog vs interactive browser?
-- JBrowse / MarpolBase track integration?
-- Antibody × stage × strain × tissue cross-tabulation (depends on what
-  bsllmner-mk2 actually extracted on the full run).
+When you want to talk Phase 2:
 
-Look at the report first, then we can scope Phase 2.
+1. **DB schema** — what queries does the catalog need to answer?
+   (Examples: by antibody/stage/strain crosses, by methylation region
+   overlap, by genome interval.) Answer drives schema choice.
+2. **antibody_target enrichment** — pull SRX experiment XML and run a
+   second extract. Largest single coverage win on the curation side.
+3. **Retry SRX29617452 with seqkit sanitize OR fasterq-dump** if you
+   want 157/157 — about an hour of work, but data is genuinely broken
+   at the source.
+4. **Web UI / JBrowse track integration** — the BigWigs and BedRead
+   files are JBrowse-ready as-is; adding a public/internal browser is
+   straightforward.
+5. **Container that runs the whole flow** for reproducibility and
+   future plant species.
+
+Open `report/phase1-summary.html` in a browser first — eyeballing the
+real numbers will surface what Phase 2 should prioritize.
