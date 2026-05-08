@@ -1,0 +1,9 @@
+{
+  "fields": {
+    "antibody_target": {
+      "ontology_file": null,
+      "value_type": "string",
+      "prompt_description": "The target protein, histone modification, or molecule of the immunoprecipitation antibody used in this ChIP-Seq experiment. Common examples: H3K4me3, H3K27me3, H3K9me2, H3K9me3, H3K36me3, H2A, H2Aub, H2AK119ub, H3 (general), RNA Pol II, MpTCP1, MpTF*, MpGCAM1, MpEZ1, MpBMI1, IgG, input. Look in the experiment title, library name, design description, and library construction protocol. The protocol text often mentions specific antibodies with catalog numbers (e.g. 'anti-H3K27me3 (07-449, Merck Millipore)') — extract the target, not the catalog number. For 'input' or 'IgG' control samples, return 'input' or 'IgG' verbatim. Return null only if no antibody target is mentioned anywhere."
+    }
+  }
+}
