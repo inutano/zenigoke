@@ -20,3 +20,6 @@ report/*.html
 # Transient fetched XML (provenance kept on disk, not in git)
 metadata/biosamples/*.xml
 metadata/experiments/
+
+# Catalog DB (build artifact, rebuilt from source)
+db/*.db
