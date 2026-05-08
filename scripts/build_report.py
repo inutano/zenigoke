@@ -144,7 +144,22 @@ def collect_samples(
                 raw_curated.get("extract", {}).get("extracted")
                 or raw_curated
             )
-            sample["curated"] = extracted if isinstance(extracted, dict) else {}
+            curated: dict[str, Any] = extracted if isinstance(extracted, dict) else {}
+            # Phase 2A: antibody_target may come from the Experiment XML pass
+            # (stored under "extract_experiment") rather than the BioSample pass.
+            # Use whichever is non-null, preferring extract_experiment when both
+            # have a value (Experiment XML is more reliable for this field).
+            if not curated.get("antibody_target"):
+                exp_extracted = (
+                    raw_curated.get("extract_experiment", {})
+                    .get("extract", {})
+                    .get("extracted", {})
+                )
+                ab = exp_extracted.get("antibody_target") if isinstance(exp_extracted, dict) else None
+                if ab:
+                    curated = dict(curated)
+                    curated["antibody_target"] = ab
+            sample["curated"] = curated
         else:
             sample["curated"] = {}
         samples.append(sample)

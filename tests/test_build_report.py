@@ -86,6 +86,50 @@ def test_collect_samples_merges_curated_metadata(tmp_path):
     assert s["curated"]["antibody_target"] == "H3K4me3"
 
 
+def test_collect_samples_merges_antibody_from_extract_experiment(tmp_path):
+    """Phase 2A: antibody_target from extract_experiment is merged into curated."""
+    status = tmp_path / "status"
+    status.mkdir()
+    (status / "SRX1.ok").write_text("")
+
+    # Curated JSON with existing extract (no antibody_target) and a new
+    # extract_experiment block that carries the antibody_target value.
+    curated = {
+        "extract": {
+            "accession": "SAMN12345",
+            "extracted": {
+                "tissue": "thallus",
+                "developmental_stage": "thallus",
+                "genotype_strain": "Tak-1",
+                "treatment": None,
+                "antibody_target": None,
+            },
+        },
+        "extract_experiment": {
+            "extract": {
+                "accession": "SRX1",
+                "extracted": {
+                    "antibody_target": "H3K27me3",
+                },
+            },
+        },
+    }
+    curated_dir = tmp_path / "metadata" / "curated"
+    _write(curated_dir / "SRX1.json", json.dumps(curated))
+
+    samples = collect_samples(
+        data_root=tmp_path,
+        output_root=tmp_path / "output",
+        metadata_root=tmp_path / "metadata",
+        csv_path=None,
+    )
+    s = samples[0]
+    # tissue comes from extract
+    assert s["curated"]["tissue"] == "thallus"
+    # antibody_target is pulled from extract_experiment (it was null in extract)
+    assert s["curated"]["antibody_target"] == "H3K27me3"
+
+
 def test_render_html_produces_valid_html_skeleton(tmp_path):
     samples = [
         {"accession": "SRX1", "status": "ok", "strategy": "ChIP-Seq",
