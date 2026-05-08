@@ -125,10 +125,17 @@ Verbatim copy of upstream `pipeline-v2-bs.sh` with two functional changes:
    | Context | BigWig pair | HMM regions |
    |--|--|--|
    | CpG | `{id}.CpG.methyl.bw`, `{id}.CpG.cover.bw` | `{id}.CpG.hmr.bed`, `{id}.CpG.hypermr.bed`, `{id}.CpG.pmd.bed` |
-   | CHG | `{id}.CHG.methyl.bw`, `{id}.CHG.cover.bw` | `{id}.CHG.hmr.bed`, `{id}.CHG.hypermr.bed` |
+   | CHG | `{id}.CHG.methyl.bw`, `{id}.CHG.cover.bw` | `{id}.CHG.hypermr.bed` |
    | CHH | `{id}.CHH.methyl.bw`, `{id}.CHH.cover.bw` | (none — low coverage makes HMM calls unreliable) |
 
    CpG runs through `dnmtools sym` first (symmetric strand pairs). CHG/CHH feed per-strand counts directly to `hypermr`. All HMM calls fan out in parallel (same pattern as upstream).
+
+   **Reality update (2026-05-09):** the original spec listed `{id}.CHG.hmr.bed`
+   in the CHG row, but `dnmtools hmr` consistently fails on per-strand CHG
+   counts (the tool is designed for symmetric CpG data). The pipeline still
+   invokes `hmr` on CHG and catches the failure with a warning, but no BED
+   file is produced. The table above has been updated to reflect what
+   actually ships. CHG `hypermr` works fine.
 
 3. Stats TSV extended (local to this fork — not a drop-in replacement for the upstream 11-column format): the upstream columns, plus per-context mean methylation for CpG / CHG / CHH. The summary report reads the extended TSV directly; no re-scan of `counts.tsv` is required.
 
@@ -229,3 +236,24 @@ These are all candidates for Phase 2 but do not block Phase 1.
 1. **Exact MarpolBase download URLs.** The `/data/` path serves a JBrowse SPA for most subpaths; the script fetches the directory listing and fails loudly if expected FASTA/GFF3 filenames aren't present. Pinned on first successful run, not guessed now.
 2. **MACS3 effective genome size.** Computed from the FASTA at prep time (non-N bases). Expected ~2.1–2.2e8 for MpTak v7.1.
 3. **Ollama `qwen3.5:27b` availability.** Pull-test before committing to the full curation run.
+
+## 12. Post-run reality (added 2026-05-09 after Phase 1 completion)
+
+Final tally: **156 / 157 samples succeeded** (89/90 ChIP, 36/36 ATAC, 31/31 BS-seq). One ChIP-Seq sample failed for source-data reasons (not a pipeline bug). Pinned URL: `https://marchantia.info/data/MpTak_v7.1_standard_genome/`. MACS3 effective genome size: **248,042,180 bp** (slightly above the original 2.2e8 estimate because the standard genome includes both sex chromosomes chrU and chrV).
+
+### Known limitations carried into Phase 2
+
+1. **`SRX29617452` (ChIP-Seq) not processable.** 39M reads, all 50 bp, named `@SRR34473242.N N/1` (BBMap-style pair tags despite ENA labelling the layout PAIRED with a single FASTQ URL). bwa-mem2 produces SAM that samtools rejects with `SEQ and QUAL are of different length`; two retries hit the same wall. Accepted as data-quality issue from the submitter.
+2. **CHG `hmr` not produced.** See §5.3 update — `dnmtools hmr` doesn't run cleanly on per-strand CHG counts. The pipeline emits a warning and continues; CHG `hypermr` works.
+3. **`antibody_target = 0%` from BioSample-only curation.** BioSample text describes the biological material, not the IP antibody. Phase 2 should also fetch the SRA Experiment XML and run a separate extract.
+4. **PO subset OWLs not built.** bsllmner-mk2 runs in LLM-only extraction mode; tissue/cell_type fields contain extracted strings without formal PO term IDs. Building `po_tissue_subset.owl` and `po_cell_subset.owl` is a Phase 2 enrichment.
+5. **ENA "PAIRED-but-single-file" edge case.** Some SRA submissions report `library_layout=PAIRED` but ENA only hosts a single combined FASTQ. The wrapper `scripts/retry-pe-fallback.sh` handles this by downloading directly via aria2c (with resume) and dispatching as SE. Used for 12 cluster-B ChIP samples in this run.
+
+### Bug fix log
+
+Nine fixes landed during validation and full execution. See
+`git log --oneline main..feature/phase1-impl` for the full list. The
+notable ones were: docker-wrapping pipeline invocations (bash-on-host
+broke immediately), CXG-vs-CHG context label in dnmtools 1.5.1,
+ENA filereport column-2 vs column-1 confusion, and the missing
+`reads_mapped` slot in the report's stats-key list.
