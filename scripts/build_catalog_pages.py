@@ -943,6 +943,73 @@ def render_about() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Bundle shell page (Phase 3 Task 5)
+# ---------------------------------------------------------------------------
+
+def render_bundle_shell() -> str:
+    """A static HTML shell that reads the bundle hash from location.hash and
+    fetches the manifest via /bundle/{hash}. One shell handles all bundles —
+    per-bundle data lives in report/bundles/{hash}/manifest.json.
+    """
+    parts: list[str] = []
+    parts.append(_page_header("Bundle — zenigoke"))
+    parts.append(_nav_from_root())
+    parts.append("""<div class='container'>
+  <h1 id='bundle-title'>Bundle</h1>
+  <p class='subtitle' id='bundle-subtitle'></p>
+  <div class='card'>
+    <h2>Tracks</h2>
+    <table id='tracks-table' class='kv'><thead>
+      <tr><th>name</th><th>type</th><th>color</th><th>file</th></tr>
+    </thead><tbody></tbody></table>
+  </div>
+  <div class='card'>
+    <h2>Actions</h2>
+    <button id='igv-btn'>&#9654; Send to IGV</button>
+    <a id='session-link' href='#'>&darr; Download IGV session</a>
+  </div>
+</div>
+<script>
+const hash = location.hash.replace('#', '');
+if (!hash) {
+  document.getElementById('bundle-subtitle').textContent = 'No bundle hash in URL.';
+} else {
+  fetch('/bundle/' + hash).then(r => {
+    if (!r.ok) throw new Error('bundle ' + hash + ' not found');
+    return r.json();
+  }).then(b => {
+    document.getElementById('bundle-title').textContent = 'Bundle ' + b.hash;
+    document.getElementById('bundle-subtitle').textContent = b.tracks.length + ' tracks';
+    const tbody = document.querySelector('#tracks-table tbody');
+    for (const t of b.tracks) {
+      const row = document.createElement('tr');
+      const fname = t.url.split('/').pop();
+      row.innerHTML = '<td>' + t.name + '</td>' +
+        '<td>' + t.type + '</td>' +
+        '<td><span style=\"color:' + t.color + '\">&#9608;</span></td>' +
+        '<td><a href=\"' + t.url + '\">' + fname + '</a></td>';
+      tbody.appendChild(row);
+    }
+    document.getElementById('igv-btn').onclick = () => {
+      const param = b.tracks.map(t => t.url + '|' + t.name).join(',');
+      fetch('http://localhost:60151/load?file=' + encodeURIComponent(param))
+        .catch(e => alert('Could not reach IGV at :60151. Make sure IGV is running with the port enabled.'));
+    };
+  }).catch(err => {
+    document.getElementById('bundle-subtitle').textContent = err.message;
+  });
+}
+</script>
+""")
+    parts.append(_page_footer())
+    return "".join(parts)
+
+
+def write_bundle_shell(out_dir: pathlib.Path) -> None:
+    (out_dir / "bundle.html").write_text(render_bundle_shell())
+
+
+# ---------------------------------------------------------------------------
 # DB query
 # ---------------------------------------------------------------------------
 
@@ -1292,6 +1359,10 @@ def write_pages(
     # Write about.html (Item 17)
     (out_dir / "about.html").write_text(render_about())
     counts["about"] = 1
+
+    # Write bundle.html shell (Phase 3 Task 5)
+    write_bundle_shell(out_dir)
+    counts["bundle_shell"] = 1
 
     return counts
 

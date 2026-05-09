@@ -16,6 +16,7 @@
 tmp/
 logs/
 report/*.html
+!report/bundle.html
 
 # Transient fetched XML (provenance kept on disk, not in git)
 metadata/biosamples/*.xml
