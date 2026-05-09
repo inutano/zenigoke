@@ -107,7 +107,9 @@ def test_populate_sample_writes_correct_row(tmp_path):
         "library_strategy": "ChIP-Seq",
         "status": "ok",
         "layout": "PE",
+        "fastq_size": "1.2G",
         "reads_filtered": 9500000,
+        "reads_mapped": 9000000,
         "mapping_rate": 0.92,
         "duplication_rate": 0.11,
         "elapsed_min": 5.3,
@@ -125,7 +127,9 @@ def test_populate_sample_writes_correct_row(tmp_path):
     assert result["library_strategy"] == "ChIP-Seq"
     assert result["status"] == "ok"
     assert result["layout"] == "PE"
+    assert result["fastq_size"] == "1.2G"
     assert result["reads_filtered"] == 9500000
+    assert result["reads_mapped"] == 9000000
     assert abs(result["mapping_rate"] - 0.92) < 1e-6
     assert abs(result["duplication_rate"] - 0.11) < 1e-6
     assert abs(result["elapsed_min"] - 5.3) < 1e-6

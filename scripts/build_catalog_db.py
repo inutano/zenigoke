@@ -42,7 +42,9 @@ CREATE TABLE sample (
   library_strategy     TEXT NOT NULL,
   status               TEXT NOT NULL,
   layout               TEXT,
+  fastq_size           TEXT,
   reads_filtered       INTEGER,
+  reads_mapped         INTEGER,
   mapping_rate         REAL,
   duplication_rate     REAL,
   elapsed_min          REAL,
@@ -172,7 +174,9 @@ def parse_chipseq_stats(row: List[str]) -> Dict[str, Any]:
     fields = _chipseq_fields_fn(row)
     return {
         "layout": fields.get("layout"),
+        "fastq_size": fields.get("fastq_size"),
         "reads_filtered": _safe_int(fields.get("reads_filt")),
+        "reads_mapped": _safe_int(fields.get("reads_mapped")),
         "mapping_rate": _safe_float(fields.get("mapping_rate")),
         "duplication_rate": _safe_float(fields.get("duplication_rate")),
         "elapsed_min": _safe_float(fields.get("elapsed_min")),
@@ -187,7 +191,9 @@ def parse_bsseq_stats(row: List[str]) -> Dict[str, Any]:
     fields = _bsseq_fields_fn(row)
     return {
         "layout": fields.get("layout"),
+        "fastq_size": fields.get("fastq_size"),
         "reads_filtered": _safe_int(fields.get("read_count")),
+        "reads_mapped": None,  # not directly in bsseq stats
         "mapping_rate": _safe_float(fields.get("mapping_rate")),
         "duplication_rate": None,  # not in bsseq stats
         "elapsed_min": _safe_float(fields.get("elapsed_min")),
@@ -389,7 +395,9 @@ def collect_sample_rows(
             "library_strategy": strat,
             "status": status,
             "layout": None,
+            "fastq_size": None,
             "reads_filtered": None,
+            "reads_mapped": None,
             "mapping_rate": None,
             "duplication_rate": None,
             "elapsed_min": None,
@@ -408,7 +416,9 @@ def collect_sample_rows(
                 parsed = parse_chipseq_stats(raw) if raw else {}
                 row.update({
                     "layout": parsed.get("layout"),
+                    "fastq_size": parsed.get("fastq_size"),
                     "reads_filtered": parsed.get("reads_filtered"),
+                    "reads_mapped": parsed.get("reads_mapped"),
                     "mapping_rate": parsed.get("mapping_rate"),
                     "duplication_rate": parsed.get("duplication_rate"),
                     "elapsed_min": parsed.get("elapsed_min"),
@@ -419,7 +429,9 @@ def collect_sample_rows(
                 parsed = parse_bsseq_stats(raw) if raw else {}
                 row.update({
                     "layout": parsed.get("layout"),
+                    "fastq_size": parsed.get("fastq_size"),
                     "reads_filtered": parsed.get("reads_filtered"),
+                    "reads_mapped": None,
                     "mapping_rate": parsed.get("mapping_rate"),
                     "duplication_rate": None,
                     "elapsed_min": parsed.get("elapsed_min"),
@@ -452,16 +464,19 @@ def populate_sample(conn: sqlite3.Connection, row: Dict[str, Any]) -> None:
         """
         INSERT OR REPLACE INTO sample(
           accession, library_strategy, status, layout,
-          reads_filtered, mapping_rate, duplication_rate, elapsed_min,
+          fastq_size, reads_filtered, reads_mapped,
+          mapping_rate, duplication_rate, elapsed_min,
           biosample_accession, output_dir
-        ) VALUES (?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             row["accession"],
             row["library_strategy"],
             row["status"],
             row.get("layout"),
+            row.get("fastq_size"),
             row.get("reads_filtered"),
+            row.get("reads_mapped"),
             row.get("mapping_rate"),
             row.get("duplication_rate"),
             row.get("elapsed_min"),
