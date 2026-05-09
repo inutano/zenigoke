@@ -3,7 +3,8 @@
 Stdlib + sqlite3 only.
 
 Public API:
-  render_index(samples: list[dict]) -> str
+  render_index(samples: list[dict]) -> str   # matrix scaffold (Phase 3 Task 6)
+  render_browse(samples: list[dict]) -> str  # all-samples table (Phase 3 Task 6)
   render_sample(sample: dict) -> str
   render_strategy(strategy: str, samples: list[dict]) -> str
   render_summary(samples: list[dict]) -> str
@@ -141,7 +142,8 @@ def _nav(active: str = "", prefix: str = "") -> str:
     active: the nav label to mark as active.
     """
     links = [
-        ("index.html", "All Samples"),
+        ("index.html", "Matrix"),
+        ("browse.html", "Browse"),
         ("strategy/chipseq.html", "ChIP-Seq"),
         ("strategy/atacseq.html", "ATAC-Seq"),
         ("strategy/bsseq.html", "BS-Seq"),
@@ -163,10 +165,9 @@ def _nav_from_root(active: str = "") -> str:
 
 def _nav_from_subdir(active: str = "") -> str:
     """Nav bar for pages one level deep (samples/, strategy/)."""
-    # Strategy pages need to adjust internal hrefs for strategy/ links
-    prefix = "../"
     links = [
-        ("../index.html", "All Samples"),
+        ("../index.html", "Matrix"),
+        ("../browse.html", "Browse"),
         ("chipseq.html", "ChIP-Seq"),
         ("atacseq.html", "ATAC-Seq"),
         ("bsseq.html", "BS-Seq"),
@@ -184,7 +185,8 @@ def _nav_from_subdir(active: str = "") -> str:
 def _nav_from_sample(active: str = "") -> str:
     """Nav bar for pages inside samples/ subdirectory."""
     links = [
-        ("../index.html", "All Samples"),
+        ("../index.html", "Matrix"),
+        ("../browse.html", "Browse"),
         ("../strategy/chipseq.html", "ChIP-Seq"),
         ("../strategy/atacseq.html", "ATAC-Seq"),
         ("../strategy/bsseq.html", "BS-Seq"),
@@ -344,28 +346,115 @@ document.querySelectorAll('#samples-table th[data-col]').forEach(th => {
 
 
 # ---------------------------------------------------------------------------
-# Index page
+# Index page (Phase 3 Task 6: matrix scaffold)
 # ---------------------------------------------------------------------------
 
 def render_index(samples: list[dict]) -> str:
-    """Render the index.html page with all samples, JS filter/chips/sort."""
+    """Top page is now the interactive matrix scaffold.
+
+    samples is kept for signature compatibility; not used at render time
+    (the matrix loads data via the API at runtime in Task 7).
+    """
+    n = len(samples) or 157
+
+    parts: list[str] = []
+    parts.append(_page_header("zenigoke catalog"))
+    # Inject matrix.css after the stylesheet tag (matrix.css created in Task 7)
+    parts.append('<link rel="stylesheet" href="assets/matrix.css">\n')
+    parts.append(_nav_from_root("Matrix"))
+
+    parts.append('<div class="container">\n')
+
+    parts.append('<div class="card info-card">\n')
+    parts.append('<h2>Marchantia polymorpha multiomics catalog</h2>\n')
+    parts.append(
+        f"<p>Pick two attributes to cross-tabulate the {n} samples. "
+        f"Click a cell to send the bundle to IGV.</p>\n"
+    )
+    parts.append("</div>\n")
+
+    parts.append('<div class="card">\n')
+    parts.append('<div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">\n')
+    parts.append('<label>X axis: <select id="x-axis-select"></select></label>\n')
+    parts.append('<label>Y axis: <select id="y-axis-select"></select></label>\n')
+    parts.append('<label><input type="checkbox" id="include-unknown"> include unknowns</label>\n')
+    parts.append("</div>\n")
+    parts.append("</div>\n")
+
+    parts.append('<div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap">\n')
+
+    parts.append('<div class="card" style="flex:2;min-width:400px">\n')
+    parts.append('<div id="matrix-grid">Loading…</div>\n')
+    parts.append("</div>\n")
+
+    parts.append('<div class="card" style="flex:1;min-width:280px;position:sticky;top:1rem">\n')
+    parts.append('<h2>Selection</h2>\n')
+    parts.append('<div id="selection-panel"><p class="subtitle">Click a populated cell to begin.</p></div>\n')
+    parts.append("</div>\n")
+
+    parts.append("</div>\n")  # flex row
+
+    parts.append("</div>\n")  # .container
+
+    parts.append("<script src='assets/matrix.js' defer></script>\n")
+    parts.append(_page_footer())
+    return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Browse page (Phase 3 Task 6: old index table moved here)
+# ---------------------------------------------------------------------------
+
+def _sample_row_html(s: dict, link_prefix: str = "samples/") -> str:
+    """Return the <tr>…</tr> HTML for one sample row in the browse/index table."""
+    acc = s.get("accession") or ""
+    strat = s.get("library_strategy") or ""
+    status = s.get("status") or ""
+    tissue = s.get("tissue") or ""
+    dev_stage = s.get("developmental_stage") or ""
+    strain = s.get("genotype_strain") or ""
+    antibody = s.get("antibody_target") or ""
+    mapping = _fmt(s.get("mapping_rate"), 1)
+    elapsed = _fmt(s.get("elapsed_min"), 1)
+
+    status_class = "ok" if status == "ok" else "failed"
+    sample_link = f'<a href="{link_prefix}{_esc(acc)}.html">&rarr;</a>'
+
+    return (
+        f'<tr class="{status_class}">\n'
+        f'<td><a href="{link_prefix}{_esc(acc)}.html">{_esc(acc)}</a></td>\n'
+        f"<td>{_esc(strat)}</td>\n"
+        f'<td class="{status_class}">{_esc(status)}</td>\n'
+        f"<td>{_dash(tissue)}</td>\n"
+        f"<td>{_dash(dev_stage)}</td>\n"
+        f"<td>{_dash(strain)}</td>\n"
+        f"<td>{_dash(antibody)}</td>\n"
+        f"<td>{_esc(mapping)}</td>\n"
+        f"<td>{_esc(elapsed)}</td>\n"
+        f"<td>{sample_link}</td>\n"
+        f"</tr>\n"
+    )
+
+
+def render_browse(samples: list[dict]) -> str:
+    """The old 'all samples table' view, now living at browse.html."""
     by_strategy, n_ok, n_failed = _summary_stats(samples)
     n_total = len(samples)
     build_date = datetime.date.today().isoformat()
 
-    # Pull strategy counts for the "What is this?" card
+    # Pull strategy counts for the info card
     n_chip = by_strategy.get("ChIP-Seq", 0)
     n_atac = by_strategy.get("ATAC-Seq", 0)
     n_bs = by_strategy.get("Bisulfite-Seq", 0)
 
     parts: list[str] = []
-    parts.append(_page_header("zenigoke catalog"))
-    parts.append(_nav_from_root("All Samples"))
+    parts.append(_page_header("Browse — zenigoke catalog"))
+    parts.append(_nav_from_root("Browse"))
 
     parts.append('<div class="container">\n')
-    parts.append("<h1>zenigoke catalog</h1>\n")
+    parts.append("<h1>Browse all samples</h1>\n")
 
-    # "What is this?" landing card (Item 4)
+    # "What is this?" landing card
     parts.append('<div class="card info-card">\n')
     parts.append('<h2>What is this?</h2>\n')
     parts.append(
@@ -391,7 +480,7 @@ def render_index(samples: list[dict]) -> str:
     parts.append(f"<p>{strat_items}</p>\n")
     parts.append("</div>\n")
 
-    # Quick-filter chips (Item 13)
+    # Quick-filter chips
     parts.append('<div class="chip-row">\n')
     chips = [
         ("ChIP-Seq", "ChIP-Seq"),
@@ -407,13 +496,13 @@ def render_index(samples: list[dict]) -> str:
         parts.append(f'<button class="chip" data-filter="{_esc(filter_val)}">{_esc(label)}</button>\n')
     parts.append("</div>\n")
 
-    # Filter input with count (Items 12, 13)
+    # Filter input with count
     parts.append('<div class="filter-row">\n')
     parts.append('<input id="q" type="text" placeholder="filter&hellip;" autocomplete="off">\n')
     parts.append(f'<span id="filter-count">{n_total} of {n_total}</span>\n')
     parts.append("</div>\n")
 
-    # Samples table with sortable headers (Item 14)
+    # Samples table with sortable headers
     parts.append('<table id="samples-table">\n')
     parts.append("<thead>\n<tr>\n")
     cols = ["accession", "strategy", "status", "tissue", "dev_stage",
@@ -426,31 +515,7 @@ def render_index(samples: list[dict]) -> str:
     parts.append("</tr>\n</thead>\n<tbody>\n")
 
     for s in samples:
-        acc = s.get("accession") or ""
-        strat = s.get("library_strategy") or ""
-        status = s.get("status") or ""
-        tissue = s.get("tissue") or ""
-        dev_stage = s.get("developmental_stage") or ""
-        strain = s.get("genotype_strain") or ""
-        antibody = s.get("antibody_target") or ""
-        mapping = _fmt(s.get("mapping_rate"), 1)
-        elapsed = _fmt(s.get("elapsed_min"), 1)
-
-        status_class = "ok" if status == "ok" else "failed"
-        sample_link = f'<a href="samples/{_esc(acc)}.html">&rarr;</a>'
-
-        parts.append(f'<tr class="{status_class}">\n')
-        parts.append(f'<td><a href="samples/{_esc(acc)}.html">{_esc(acc)}</a></td>\n')
-        parts.append(f"<td>{_esc(strat)}</td>\n")
-        parts.append(f'<td class="{status_class}">{_esc(status)}</td>\n')
-        parts.append(f"<td>{_dash(tissue)}</td>\n")
-        parts.append(f"<td>{_dash(dev_stage)}</td>\n")
-        parts.append(f"<td>{_dash(strain)}</td>\n")
-        parts.append(f"<td>{_dash(antibody)}</td>\n")
-        parts.append(f"<td>{_esc(mapping)}</td>\n")
-        parts.append(f"<td>{_esc(elapsed)}</td>\n")
-        parts.append(f"<td>{sample_link}</td>\n")
-        parts.append("</tr>\n")
+        parts.append(_sample_row_html(s))
 
     parts.append("</tbody>\n</table>\n")
     parts.append("</div>\n")  # .container
@@ -1320,6 +1385,7 @@ def write_pages(
 
     counts = {
         "index": 0,
+        "browse": 0,
         "samples": 0,
         "strategy": 0,
         "summary": 0,
@@ -1330,9 +1396,13 @@ def write_pages(
     # Write stylesheet
     (assets_dir / "style.css").write_text(STYLE_CSS)
 
-    # Write index.html
+    # Write index.html (matrix scaffold)
     (out_dir / "index.html").write_text(render_index(samples))
     counts["index"] = 1
+
+    # Write browse.html (the old all-samples table)
+    (out_dir / "browse.html").write_text(render_browse(samples))
+    counts["browse"] = 1
 
     # Write per-sample pages
     for s in samples:

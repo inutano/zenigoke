@@ -143,28 +143,23 @@ ALL_SAMPLES = [CHIP_SAMPLE, ATAC_SAMPLE, BSSEQ_SAMPLE]
 
 
 # ---------------------------------------------------------------------------
-# Test 1: Index page rendering
+# Test 1: Index page rendering (Phase 3 Task 6: now the matrix scaffold)
 # ---------------------------------------------------------------------------
 
-def test_render_index_contains_all_accessions_and_filter_input():
-    """render_index must include all 3 accessions and a filter <input>."""
-    html = bcp.render_index(ALL_SAMPLES)
-
-    # All 3 accessions appear in the page
-    assert "SRX_CHIP_001" in html
-    assert "SRX_ATAC_002" in html
-    assert "SRX_BSSEQ_003" in html
-
-    # Filter input is present (spec: <input id="q" placeholder="filter…">)
-    assert 'id="q"' in html
-    assert "<input" in html
-
-    # Must be valid enough HTML: has table rows for data
-    assert "<tr" in html
-    assert "<th" in html  # header row
-
-    # JS filter handler present
-    assert "oninput" in html or "addEventListener" in html
+def test_render_index_contains_matrix_scaffold():
+    """render_index must now be the matrix scaffold (not the sample table)."""
+    samples = []   # matrix is dynamic — index doesn't need samples now
+    html = bcp.render_index(samples)
+    assert html.startswith("<!DOCTYPE html>")
+    # axis selectors present
+    assert 'id="x-axis-select"' in html
+    assert 'id="y-axis-select"' in html
+    # matrix container present
+    assert 'id="matrix-grid"' in html
+    # side panel present
+    assert 'id="selection-panel"' in html
+    # matrix.js loaded
+    assert 'matrix.js' in html
 
 
 # ---------------------------------------------------------------------------
@@ -392,20 +387,36 @@ def test_atacseq_strategy_page_has_no_antibody_column():
 
 
 # ---------------------------------------------------------------------------
-# Test 9: Index page has filter count, chip buttons, and sortable headers
+# Test 9: Browse page has filter count, chip buttons, and sortable headers
+#         (These features moved from render_index → render_browse in Task 6)
 # ---------------------------------------------------------------------------
 
-def test_index_has_filter_count_and_chips():
-    """Index page must have #filter-count element and chip buttons."""
-    h = bcp.render_index(ALL_SAMPLES)
+def test_browse_has_filter_count_and_chips():
+    """Browse page must have #filter-count element and chip buttons."""
+    h = bcp.render_browse(ALL_SAMPLES)
     assert "filter-count" in h
     assert "chip" in h and "data-filter" in h
 
 
-def test_index_table_headers_have_data_col():
-    """Index table headers must have data-col attributes for JS sorting."""
-    h = bcp.render_index(ALL_SAMPLES)
+def test_browse_table_headers_have_data_col():
+    """Browse table headers must have data-col attributes for JS sorting."""
+    h = bcp.render_browse(ALL_SAMPLES)
     assert 'data-col=' in h
+
+
+def test_render_browse_contains_all_accessions(tmp_path):
+    """render_browse must include all accessions and the filter input."""
+    samples = [
+        {"accession": "SRX1", "library_strategy": "ChIP-Seq", "status": "ok",
+         "tissue": "thallus", "developmental_stage": None, "genotype_strain": None,
+         "antibody_target": None, "mapping_rate": "88.0", "elapsed_min": "3.4"},
+        {"accession": "SRX2", "library_strategy": "ATAC-Seq", "status": "ok",
+         "tissue": "thallus", "developmental_stage": None, "genotype_strain": None,
+         "antibody_target": None, "mapping_rate": "90.5", "elapsed_min": "4.1"},
+    ]
+    html = bcp.render_browse(samples)
+    assert "SRX1" in html and "SRX2" in html
+    assert 'id="q"' in html  # the existing filter input
 
 
 # ---------------------------------------------------------------------------
