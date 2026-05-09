@@ -1031,7 +1031,6 @@ def render_bundle_shell() -> str:
   <div class='card'>
     <h2>Actions</h2>
     <button id='igv-btn'>&#9654; Send to IGV</button>
-    <a id='session-link' href='#'>&darr; Download IGV session</a>
   </div>
 </div>
 <script>

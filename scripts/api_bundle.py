@@ -10,7 +10,7 @@ import os
 import pathlib
 import sqlite3
 import subprocess
-from typing import List
+from typing import List, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
@@ -18,6 +18,8 @@ from api_axes import _db
 from igv_url_helper import per_sample_tracks, consensus_track, color_for_group
 
 router = APIRouter()
+
+QCutoff = Literal["1e-5", "1e-10", "1e-20"]
 
 
 class GroupSpec(BaseModel):
@@ -27,7 +29,7 @@ class GroupSpec(BaseModel):
 
 class BundleRequest(BaseModel):
     accessions: List[str] = Field(..., min_length=1)
-    q_cutoff: str = "1e-10"
+    q_cutoff: QCutoff = "1e-10"
     groups: List[GroupSpec] = []
 
 
