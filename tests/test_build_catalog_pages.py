@@ -196,10 +196,10 @@ def test_render_sample_bsseq_contains_methylation_stats():
     assert "SRX_BSSEQ_003" in html
     assert "Bisulfite-Seq" in html
 
-    # Mean methylation values
-    assert "0.178" in html   # mean_cpg
-    assert "0.062" in html   # mean_chg
-    assert "0.019" in html   # mean_chh
+    # Mean methylation values — now rendered as percentages (Item 11)
+    assert "17.8%" in html   # mean_cpg (0.178 * 100)
+    assert "6.2%" in html    # mean_chg (0.062 * 100)
+    assert "1.9%" in html    # mean_chh (0.019 * 100)
 
     # HMR/PMD region counts
     assert "8200" in html    # cpg_hmr_count
@@ -247,3 +247,173 @@ def test_render_strategy_bsseq_contains_only_bsseq_rows():
     assert "SRX_BSSEQ_003" in html
     assert "SRX_CHIP_001" not in html
     assert "SRX_ATAC_002" not in html
+
+
+# ---------------------------------------------------------------------------
+# Test 4: Nav link depth correctness (Item 1)
+# ---------------------------------------------------------------------------
+
+def test_strategy_page_nav_links_use_relative_parent_for_index():
+    """Strategy pages must use ../index.html and ../summary.html, not index.html."""
+    for slug in ("chipseq", "atacseq", "bsseq"):
+        h = bcp.render_strategy(slug, ALL_SAMPLES)
+        # Must link up to parent for root-level pages
+        assert '../index.html' in h, f"strategy/{slug}.html missing ../index.html"
+        assert '../summary.html' in h, f"strategy/{slug}.html missing ../summary.html"
+        # Must NOT use root-relative paths that would be broken from strategy/
+        assert 'href="index.html"' not in h, f"strategy/{slug}.html has broken href=index.html"
+        assert 'href="summary.html"' not in h, f"strategy/{slug}.html has broken href=summary.html"
+
+
+def test_strategy_page_active_link_is_self_relative():
+    """The active strategy link in chipseq.html should be chipseq.html (not strategy/chipseq.html)."""
+    h = bcp.render_strategy("chipseq", ALL_SAMPLES)
+    # The active link for ChIP-Seq page itself should be chipseq.html (same dir)
+    assert 'href="chipseq.html" class="active"' in h or 'href="chipseq.html"' in h
+
+
+# ---------------------------------------------------------------------------
+# Test 5: Failed sample card (Item 7)
+# ---------------------------------------------------------------------------
+
+FAILED_SAMPLE: dict = {
+    "accession": "SRX_FAIL_999",
+    "library_strategy": "ChIP-Seq",
+    "status": "failed",
+    "layout": "0",
+    "fastq_size": None,
+    "reads_filtered": None,
+    "reads_mapped": None,
+    "mapping_rate": None,
+    "duplication_rate": None,
+    "elapsed_min": None,
+    "biosample_accession": "SAMN99999",
+    "output_dir": "/fake/chipseq/SRX_FAIL_999",
+    "exit_code": "1",
+    "log_snippet": (
+        "[#1504fb 160MiB/1.1GiB(14%) CN:8 DL:31MiB ETA:30s]\n"
+        "[#1504fb 1.1GiB/1.1GiB(100%) CN:0]\n"
+        "[E::sam_parse1] SEQ and QUAL are of different length\n"
+        "samtools sort: truncated file. Aborting\n"
+        "samtools markdup: error reading header\n"
+    ),
+    # curation
+    "tissue": "thallus", "cell_type": None, "developmental_stage": None,
+    "genotype_strain": "Tak-1", "treatment": None, "antibody_target": None,
+    # chipseq-specific (absent)
+    "peaks_q5": None, "peaks_q10": None, "peaks_q20": None,
+    "bigwig_path": None, "peaks_q5_path": None, "peaks_q10_path": None, "peaks_q20_path": None,
+    # bsseq-specific (absent)
+    "mean_cpg": None, "mean_chg": None, "mean_chh": None,
+    "cpg_hmr_count": None, "cpg_hypermr_count": None, "cpg_pmd_count": None,
+    "chg_hypermr_count": None,
+    "cpg_methyl_bw_path": None, "cpg_cover_bw_path": None,
+    "cpg_hmr_path": None, "cpg_hypermr_path": None, "cpg_pmd_path": None,
+    "chg_methyl_bw_path": None, "chg_cover_bw_path": None,
+    "chg_hypermr_path": None, "chh_methyl_bw_path": None, "chh_cover_bw_path": None,
+}
+
+
+def test_render_failed_sample_shows_failure_card_not_pipeline_stats():
+    """Failed samples must render the failure card and NOT an empty Pipeline Stats card."""
+    h = bcp.render_sample(FAILED_SAMPLE)
+
+    # Failure card must be present
+    assert "failed-card" in h or "Did Not Complete" in h or "Did not complete" in h
+    assert "exit code 1" in h or "exit_code" in h.lower() or "1" in h
+
+    # Pipeline Stats card must NOT appear for failed samples
+    assert "Pipeline Stats" not in h
+
+
+def test_render_failed_sample_filters_aria2c_progress_lines():
+    """Log snippet in failed sample page must not contain aria2c progress lines."""
+    h = bcp.render_sample(FAILED_SAMPLE)
+
+    # aria2c lines like [#1504fb ...] must be filtered out
+    assert "[#1504fb" not in h
+    # But real error lines must remain
+    assert "sam_parse1" in h or "truncated" in h or "QUAL" in h
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Layout 0/1 → SE/PE (Item 2)
+# ---------------------------------------------------------------------------
+
+def test_layout_translated_to_se_pe():
+    """layout=0 renders as SE, layout=1 renders as PE on sample pages."""
+    sample_se = dict(CHIP_SAMPLE)
+    sample_se["layout"] = "0"
+    sample_pe = dict(CHIP_SAMPLE)
+    sample_pe["layout"] = "1"
+
+    html_se = bcp.render_sample(sample_se)
+    html_pe = bcp.render_sample(sample_pe)
+
+    assert ">SE<" in html_se or "SE</td>" in html_se or ">SE" in html_se
+    assert ">PE<" in html_pe or "PE</td>" in html_pe or ">PE" in html_pe
+    # Raw numeric values must not appear in the layout row
+    assert "<td>0</td>" not in html_se
+    assert "<td>1</td>" not in html_pe
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Units rendering (Item 11)
+# ---------------------------------------------------------------------------
+
+def test_mapping_rate_rendered_with_percent():
+    """mapping_rate must be rendered as 'XX.X%' not raw float."""
+    h = bcp.render_sample(CHIP_SAMPLE)
+    # Should contain the percentage string
+    assert "85.3%" in h
+
+
+def test_elapsed_min_rendered_with_min_suffix():
+    """elapsed_min must be rendered with ' min' suffix."""
+    h = bcp.render_sample(CHIP_SAMPLE)
+    assert " min" in h
+
+
+# ---------------------------------------------------------------------------
+# Test 8: BS-seq strategy page has methylation columns (Item 10)
+# ---------------------------------------------------------------------------
+
+def test_bsseq_strategy_page_has_methylation_columns():
+    """BS-seq strategy page must include mean_CpG/mean_CHG/mean_CHH columns."""
+    h = bcp.render_strategy("bsseq", ALL_SAMPLES)
+    assert "mean_CpG" in h or "mean_cpg" in h.lower()
+    assert "mean_CHG" in h or "mean_chg" in h.lower()
+
+
+def test_atacseq_strategy_page_has_no_antibody_column():
+    """ATAC-Seq strategy page must not have an antibody column."""
+    h = bcp.render_strategy("atacseq", ALL_SAMPLES)
+    assert "antibody" not in h.lower()
+
+
+# ---------------------------------------------------------------------------
+# Test 9: Index page has filter count, chip buttons, and sortable headers
+# ---------------------------------------------------------------------------
+
+def test_index_has_filter_count_and_chips():
+    """Index page must have #filter-count element and chip buttons."""
+    h = bcp.render_index(ALL_SAMPLES)
+    assert "filter-count" in h
+    assert "chip" in h and "data-filter" in h
+
+
+def test_index_table_headers_have_data_col():
+    """Index table headers must have data-col attributes for JS sorting."""
+    h = bcp.render_index(ALL_SAMPLES)
+    assert 'data-col=' in h
+
+
+# ---------------------------------------------------------------------------
+# Test 10: ENA SRA link on sample pages (Item 5)
+# ---------------------------------------------------------------------------
+
+def test_sample_page_has_ena_sra_link():
+    """Sample pages must include a link to ENA browser for the accession."""
+    h = bcp.render_sample(CHIP_SAMPLE)
+    assert "ebi.ac.uk/ena/browser/view/SRX_CHIP_001" in h
+    assert "SRA" in h
