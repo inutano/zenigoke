@@ -34,12 +34,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers added in later tasks:
-#   from api_bundle import router as bundle_router; app.include_router(bundle_router)
 from api_axes import router as axes_router
 app.include_router(axes_router)
 from api_matrix import router as matrix_router
 app.include_router(matrix_router)
+from api_bundle import router as bundle_router
+app.include_router(bundle_router)
 
 BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
 

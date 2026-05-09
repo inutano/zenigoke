@@ -26,3 +26,5 @@ db/*.db
 
 # Symlink to pipeline output (served via HTTP; target is outside the repo)
 report/output
+.superpowers/
+report/bundles/
