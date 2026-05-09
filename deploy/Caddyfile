@@ -1,0 +1,16 @@
+# Zenigoke catalog API — auto-TLS via Let's Encrypt.
+# Set the actual domain via the API_HOST env var when launching caddy:
+#   API_HOST=api.zenigoke.example.com caddy run --config Caddyfile
+
+{$API_HOST} {
+  reverse_proxy 127.0.0.1:8088
+  encode gzip
+  log {
+    output file /var/log/caddy/zenigoke.log
+    format console
+  }
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+  }
+}

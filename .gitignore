@@ -16,6 +16,7 @@
 tmp/
 logs/
 report/*.html
+!report/bundle.html
 
 # Transient fetched XML (provenance kept on disk, not in git)
 metadata/biosamples/*.xml
@@ -26,3 +27,5 @@ db/*.db
 
 # Symlink to pipeline output (served via HTTP; target is outside the repo)
 report/output
+.superpowers/
+report/bundles/
