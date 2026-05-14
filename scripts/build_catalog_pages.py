@@ -383,11 +383,11 @@ def render_index(samples: list[dict]) -> str:
 
     parts.append('<div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap">\n')
 
-    parts.append('<div class="card" style="flex:2;min-width:400px">\n')
+    parts.append('<div class="card" style="flex:2;min-width:min(400px,100%)">\n')
     parts.append('<div id="matrix-grid">Loading…</div>\n')
     parts.append("</div>\n")
 
-    parts.append('<div class="card" style="flex:1;min-width:280px;position:sticky;top:1rem">\n')
+    parts.append('<div class="card" style="flex:1;min-width:min(280px,100%);position:sticky;top:1rem">\n')
     parts.append('<h2>Selection</h2>\n')
     parts.append('<div id="selection-panel"><p class="subtitle">Click a populated cell to begin.</p></div>\n')
     parts.append("</div>\n")
