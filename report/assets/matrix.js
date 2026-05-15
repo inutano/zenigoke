@@ -1,5 +1,13 @@
 "use strict";
 
+// Static-mode matrix UI. Reads pre-generated JSON from `data/` (built by
+// scripts/build_static_data.py) instead of /api/* — works on GitHub Pages
+// with no backend.
+//
+// Per-sample track URLs point at ZENIGOKE_DATA_BASE (configured at build
+// time via window.ZENIGOKE_DATA_BASE injected into index.html). When unset
+// (local dev served by FastAPI), URLs are relative to the catalog server.
+
 const state = {
   axes: null,
   matrix: null,
@@ -7,8 +15,14 @@ const state = {
   groupColors: ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"],
 };
 
+const DATA_BASE = (window.ZENIGOKE_DATA_BASE || "").replace(/\/$/, "");
+
+function dataUrl(path) {
+  return DATA_BASE ? `${DATA_BASE}${path}` : path;
+}
+
 async function init() {
-  const r = await fetch("/api/axes");
+  const r = await fetch("data/axes.json");
   state.axes = await r.json();
 
   const xsel = document.getElementById("x-axis-select");
@@ -35,7 +49,15 @@ async function refreshMatrix() {
   const x = document.getElementById("x-axis-select").value;
   const y = document.getElementById("y-axis-select").value;
   const inc = document.getElementById("include-unknown").checked ? 1 : 0;
-  const r = await fetch(`/api/matrix?x=${x}&y=${y}&include_unknown=${inc}`);
+  if (x === y) {
+    document.getElementById("matrix-grid").innerHTML =
+      "<p class='subtitle'>Pick two different axes.</p>";
+    state.matrix = null;
+    state.selectedCells.clear();
+    renderSelection();
+    return;
+  }
+  const r = await fetch(`data/matrix-${x}-${y}-${inc}.json`);
   state.matrix = await r.json();
   state.selectedCells.clear();
   renderSelection();
@@ -44,6 +66,7 @@ async function refreshMatrix() {
 
 function renderMatrix() {
   const m = state.matrix;
+  if (!m) return;
   const cells = new Map(m.cells.map(c => [`${c.x}|${c.y}`, c]));
   const grid = document.getElementById("matrix-grid");
   let html = "<table><thead><tr><th></th>";
@@ -116,41 +139,107 @@ function renderSelection() {
   });
 }
 
-async function postBundle(groups) {
-  const accessions = [...new Set(groups.flatMap(g => g.accessions))];
-  const r = await fetch("/api/bundle", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({accessions: accessions, q_cutoff: "1e-10",
-                          groups: groups.map(g => ({label: g.label, accessions: g.accessions}))}),
-  });
-  if (!r.ok) throw new Error(`bundle failed: ${r.status}`);
-  return await r.json();
+// === Track-list construction (client-side) ===
+//
+// Per Phase 4 (static-only) we build the IGV track list in the browser
+// instead of asking a server. No consensus track — IGV displays per-sample
+// tracks side by side, which is enough for the comparison workflows the
+// catalog targets.
+
+const Q_LABEL = {"1e-5": "05", "1e-10": "10", "1e-20": "20"};
+
+function tracksForAccession(acc, sample, color) {
+  // `sample` is optional metadata pulled from the cell entry. We don't have
+  // library_strategy in the matrix payload, so we infer it from the axis
+  // value when possible, otherwise probe by URL pattern by trying ChIP first.
+  // Simplest robust approach: assume ChIP if the cell's x or y is "ChIP:*",
+  // ATAC if "ATAC-Seq", BS-seq if "Bisulfite-Seq". Caller passes the resolved
+  // strategy as `sample.strategy`.
+  const strat = sample.strategy;
+  const q = sample.q_cutoff || "1e-10";
+  if (strat === "ChIP-Seq" || strat === "ATAC-Seq") {
+    const sub = strat === "ChIP-Seq" ? "chipseq" : "atacseq";
+    const qLabel = Q_LABEL[q] || "10";
+    return [
+      {name: `${acc} bigwig`,
+       url: dataUrl(`output/${sub}/${acc}/${acc}.bw`),
+       type: "wig", color: color},
+      {name: `${acc} peaks q≤${q}`,
+       url: dataUrl(`output/${sub}/${acc}/${acc}.${qLabel}_peaks.narrowPeak`),
+       type: "annotation", color: color},
+    ];
+  }
+  if (strat === "Bisulfite-Seq") {
+    return [
+      {name: `${acc} CpG methyl`,
+       url: dataUrl(`output/bsseq/${acc}/${acc}.CpG.methyl.bw`),
+       type: "wig", color: color},
+      {name: `${acc} CHG methyl`,
+       url: dataUrl(`output/bsseq/${acc}/${acc}.CHG.methyl.bw`),
+       type: "wig", color: color},
+      {name: `${acc} CHH methyl`,
+       url: dataUrl(`output/bsseq/${acc}/${acc}.CHH.methyl.bw`),
+       type: "wig", color: color},
+    ];
+  }
+  return [];
+}
+
+function resolveStrategy(cell) {
+  // The matrix payload has cell.x / cell.y; one or the other carries the
+  // experiment_type when that axis is in use. Otherwise we fall back to the
+  // accession-prefix heuristic via the sample lookup map — but for simplicity
+  // we encode strategy in the cell when the axis is experiment_type, else
+  // mark "unknown" and skip those tracks.
+  const isType = v => /^(ATAC-Seq|Bisulfite-Seq|ChIP:)/.test(v);
+  if (isType(cell.x)) return cell.x.startsWith("ChIP:") ? "ChIP-Seq" : cell.x;
+  if (isType(cell.y)) return cell.y.startsWith("ChIP:") ? "ChIP-Seq" : cell.y;
+  return null;
+}
+
+function buildTracks(groups, qCutoff) {
+  const tracks = [];
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
+    const color = state.groupColors[i % state.groupColors.length];
+    const cellLike = {x: g.label.split(" × ")[0], y: g.label.split(" × ")[1] || ""};
+    const strat = resolveStrategy(cellLike);
+    if (!strat) continue;
+    for (const acc of g.accessions) {
+      tracks.push(...tracksForAccession(acc, {strategy: strat, q_cutoff: qCutoff}, color));
+    }
+  }
+  return tracks;
 }
 
 async function sendToIgv(groups) {
   const btn = document.getElementById("send-igv-btn");
-  btn.disabled = true; btn.textContent = "Building bundle…";
+  btn.disabled = true;
+  const tracks = buildTracks(groups, "1e-10");
+  if (tracks.length === 0) {
+    btn.textContent = "No track URLs (pick a cell with experiment_type on either axis)";
+    return;
+  }
+  btn.textContent = "Loading into IGV…";
+  const param = tracks.map(t => t.url + "|" + t.name).join(",");
   try {
-    const bundle = await postBundle(groups);
-    const param = bundle.tracks.map(t => t.url + "|" + t.name).join(",");
-    btn.textContent = "Loading into IGV…";
-    try {
-      await fetch("http://localhost:60151/load?file=" + encodeURIComponent(param));
-      btn.textContent = "✔ Sent to IGV";
-    } catch (e) {
-      btn.textContent = "Could not reach IGV (port :60151 not enabled?)";
-      btn.disabled = false;
-    }
+    await fetch("http://localhost:60151/load?file=" + encodeURIComponent(param));
+    btn.textContent = "✔ Sent to IGV";
   } catch (e) {
-    btn.textContent = "Bundle failed: " + e.message;
+    btn.textContent = "Could not reach IGV (port :60151 not enabled?)";
     btn.disabled = false;
   }
 }
 
-async function openDrilldown(groups) {
-  const bundle = await postBundle(groups);
-  window.open("/bundle.html#" + bundle.hash, "_blank");
+function openDrilldown(groups) {
+  const accessions = [...new Set(groups.flatMap(g => g.accessions))];
+  const labels = groups.map(g => `${g.label}:${g.accessions.join('+')}`).join(';');
+  const params = new URLSearchParams({
+    acc: accessions.join(","),
+    q: "1e-10",
+    g: labels,
+  });
+  window.open("bundle.html?" + params.toString(), "_blank");
 }
 
 function escapeHtml(s) {

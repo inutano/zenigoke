@@ -1,10 +1,10 @@
 {
   "CORSRules": [
     {
-      "AllowedOrigins": ["https://*.github.io", "http://localhost:8088"],
+      "AllowedOrigins": ["https://*.github.io", "http://localhost:8088", "http://*.tail*.ts.net"],
       "AllowedMethods": ["GET", "HEAD"],
       "AllowedHeaders": ["Range", "Content-Type"],
-      "ExposeHeaders": ["Accept-Ranges", "Content-Length", "Content-Range"],
+      "ExposeHeaders": ["Accept-Ranges", "Content-Length", "Content-Range", "ETag"],
       "MaxAgeSeconds": 3600
     }
   ]

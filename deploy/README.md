@@ -1,19 +1,31 @@
-````markdown
-# Cloud deployment notes (manual; not auto-applied)
+# Deployment
 
-See `docs/superpowers/specs/2026-05-09-zenigoke-phase3-design.md` §6 for context.
+Two modes share the same code; pick one.
 
-## Initial setup
+## A) Static-only (S3 + GitHub Pages) — recommended for sharing
+
+**~$1/mo, no API server, no SSH.** See [`aws/README.md`](aws/README.md).
 
 ```bash
-# 1. S3 bucket
-aws s3 mb s3://zenigoke-catalog
-aws s3api put-bucket-cors --bucket zenigoke-catalog \
-  --cors-configuration file://deploy/s3-cors.json
+bash deploy/aws/01-bucket.sh    # one-time
+bash deploy/aws/02-sync-data.sh # one-time + whenever data changes
+git push origin main             # → workflow rebuilds Pages
+```
 
-# 2. Initial data sync (run from the dev host)
-aws s3 sync /data1/zenigoke/output s3://zenigoke-catalog/output
-aws s3 cp db/kknmsmd.db s3://zenigoke-catalog/db/
+What you lose vs mode B: server-side `bedtools merge` consensus tracks (per-sample tracks still work; IGV displays them side by side).
+
+## B) Full API on EC2 — needed only if you want consensus tracks
+
+Heavier (~$15/mo, requires a domain for TLS). The `Caddyfile`, `zenigoke.service`, and original instructions are preserved here as reference.
+
+### Initial setup (manual; not auto-applied)
+
+```bash
+# 1. S3 bucket (same as mode A)
+bash deploy/aws/01-bucket.sh
+
+# 2. Initial data sync
+bash deploy/aws/02-sync-data.sh
 
 # 3. EC2 t3.small (Ubuntu 22.04). On the instance:
 sudo apt-get update && sudo apt-get install -y python3-pip bedtools caddy
@@ -35,20 +47,10 @@ EOF'
 sudo cp deploy/zenigoke.service /etc/systemd/system/
 sudo systemctl enable --now zenigoke
 
-# 6. Caddy
+# 6. Caddy (requires a real domain pointed at the EC2 IP)
 sudo API_HOST=api.zenigoke.example.com caddy run --config deploy/Caddyfile
 ```
 
-## Frontend deploy
+### Frontend in mode B
 
-```bash
-# Build the static catalog with S3 URLs in the track links:
-ZENIGOKE_S3_BASE=https://zenigoke-catalog.s3.amazonaws.com python3 scripts/build-catalog-pages.py
-
-# Push to gh-pages
-git checkout gh-pages
-cp -r report/* .
-git add -A && git commit -m "publish catalog"
-git push origin gh-pages
-```
-````
+Same as mode A — push to `main`, the GitHub Actions workflow builds and publishes to Pages. The published pages use S3 URLs for the per-sample tracks (regardless of whether the consensus API is up).

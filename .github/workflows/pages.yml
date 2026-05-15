@@ -1,0 +1,70 @@
+name: Publish catalog to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/build_catalog_pages.py"
+      - "scripts/build_static_data.py"
+      - "scripts/api_axes.py"
+      - "scripts/api_matrix.py"
+      - "scripts/api_bundle.py"
+      - "scripts/igv_url_helper.py"
+      - "scripts/build_report.py"
+      - "scripts/build_catalog_db.py"
+      - "report/assets/**"
+      - "requirements.txt"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-1
+  ZENIGOKE_BUCKET: zenigoke-catalog
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: pip install -r requirements.txt
+
+      - name: Download catalog DB from S3
+        run: |
+          mkdir -p db
+          curl -fsSL \
+            "https://${ZENIGOKE_BUCKET}.s3.${AWS_REGION}.amazonaws.com/db/kknmsmd.db" \
+            -o db/kknmsmd.db
+          test -s db/kknmsmd.db
+          ls -lh db/
+
+      - name: Build static catalog with S3-prefixed track URLs
+        env:
+          ZENIGOKE_DATA_BASE: "https://${{ env.ZENIGOKE_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/"
+        run: python3 scripts/build-catalog-pages.py
+
+      - name: Sanity check the built artifacts
+        run: |
+          test -s report/index.html
+          test -s report/data/axes.json
+          test "$(ls report/data/matrix-*.json | wc -l)" -ge 24
+          grep -q "ZENIGOKE_DATA_BASE" report/index.html
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./report
+          publish_branch: gh-pages
+          force_orphan: true
+          commit_message: "deploy: build ${{ github.sha }} → gh-pages"

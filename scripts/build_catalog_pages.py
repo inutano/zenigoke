@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime
 import html
+import os
 import pathlib
 import re
 import shutil
@@ -396,6 +397,7 @@ def render_index(samples: list[dict]) -> str:
 
     parts.append("</div>\n")  # .container
 
+    parts.append(_data_base_inline_script())
     parts.append("<script src='assets/matrix.js' defer></script>\n")
     parts.append(_page_footer())
     return "".join(parts)
@@ -1011,10 +1013,25 @@ def render_about() -> str:
 # Bundle shell page (Phase 3 Task 5)
 # ---------------------------------------------------------------------------
 
+def _data_base_inline_script() -> str:
+    """Inject window.ZENIGOKE_DATA_BASE for cloud-mode (S3) builds.
+
+    The build script reads $ZENIGOKE_DATA_BASE (e.g. the S3 HTTPS URL). When
+    set, matrix.js routes per-sample track URLs through that base. When
+    unset, URLs stay relative — local FastAPI dev mode behavior.
+    """
+    base = os.getenv("ZENIGOKE_DATA_BASE", "").rstrip("/")
+    if not base:
+        return ""
+    safe = base.replace("'", "")
+    return f"<script>window.ZENIGOKE_DATA_BASE='{safe}/';</script>\n"
+
+
 def render_bundle_shell() -> str:
-    """A static HTML shell that reads the bundle hash from location.hash and
-    fetches the manifest via /bundle/{hash}. One shell handles all bundles —
-    per-bundle data lives in report/bundles/{hash}/manifest.json.
+    """Static drilldown page. Reads accessions/q from URL params (no server
+    lookup needed) — works on GitHub Pages with no backend.
+
+    URL shape:  bundle.html?acc=SRX1,SRX2,...&q=1e-10[&g=label1:a+b;label2:c+d]
     """
     parts: list[str] = []
     parts.append(_page_header("Bundle — zenigoke"))
@@ -1033,36 +1050,71 @@ def render_bundle_shell() -> str:
     <button id='igv-btn'>&#9654; Send to IGV</button>
   </div>
 </div>
+<script src='assets/matrix.js' defer></script>
 <script>
-const hash = location.hash.replace('#', '');
-if (!hash) {
-  document.getElementById('bundle-subtitle').textContent = 'No bundle hash in URL.';
-} else {
-  fetch('/bundle/' + hash).then(r => {
-    if (!r.ok) throw new Error('bundle ' + hash + ' not found');
-    return r.json();
-  }).then(b => {
-    document.getElementById('bundle-title').textContent = 'Bundle ' + b.hash;
-    document.getElementById('bundle-subtitle').textContent = b.tracks.length + ' tracks';
-    const tbody = document.querySelector('#tracks-table tbody');
-    for (const t of b.tracks) {
-      const row = document.createElement('tr');
-      const fname = t.url.split('/').pop();
-      row.innerHTML = '<td>' + t.name + '</td>' +
-        '<td>' + t.type + '</td>' +
-        '<td><span style=\"color:' + t.color + '\">&#9608;</span></td>' +
-        '<td><a href=\"' + t.url + '\">' + fname + '</a></td>';
-      tbody.appendChild(row);
+// Wait until matrix.js is loaded (it exposes tracksForAccession + dataUrl).
+// Build the track list from URL params and render.
+function _initBundle() {
+  const params = new URLSearchParams(location.search);
+  const accs = (params.get('acc') || '').split(',').filter(Boolean);
+  const q = params.get('q') || '1e-10';
+  const groupSpec = params.get('g') || '';
+  if (accs.length === 0) {
+    document.getElementById('bundle-subtitle').textContent = 'No accessions in URL.';
+    return;
+  }
+
+  // Parse the optional group spec: "label1:a+b;label2:c+d"
+  const groups = [];
+  const palette = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
+  if (groupSpec) {
+    for (const part of groupSpec.split(';')) {
+      const [label, accStr] = part.split(':');
+      if (!accStr) continue;
+      groups.push({label: label || '?', accessions: accStr.split('+').filter(Boolean)});
     }
-    document.getElementById('igv-btn').onclick = () => {
-      const param = b.tracks.map(t => t.url + '|' + t.name).join(',');
-      fetch('http://localhost:60151/load?file=' + encodeURIComponent(param))
-        .catch(e => alert('Could not reach IGV at :60151. Make sure IGV is running with the port enabled.'));
-    };
-  }).catch(err => {
-    document.getElementById('bundle-subtitle').textContent = err.message;
-  });
+  } else {
+    groups.push({label: 'samples', accessions: accs});
+  }
+
+  // resolveStrategy / tracksForAccession / dataUrl live in matrix.js.
+  // If matrix.js hasn't finished loading yet, retry.
+  if (typeof tracksForAccession !== 'function') {
+    setTimeout(_initBundle, 50);
+    return;
+  }
+
+  const tracks = [];
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
+    const color = palette[i % palette.length];
+    const cellLike = {x: g.label.split(' × ')[0] || '', y: g.label.split(' × ')[1] || ''};
+    const strat = resolveStrategy(cellLike);
+    for (const acc of g.accessions) {
+      const ts = tracksForAccession(acc, {strategy: strat, q_cutoff: q}, color);
+      tracks.push(...ts);
+    }
+  }
+
+  document.getElementById('bundle-title').textContent = 'Bundle (' + accs.length + ' samples)';
+  document.getElementById('bundle-subtitle').textContent = tracks.length + ' tracks · q≤' + q;
+  const tbody = document.querySelector('#tracks-table tbody');
+  for (const t of tracks) {
+    const row = document.createElement('tr');
+    const fname = t.url.split('/').pop();
+    row.innerHTML = '<td>' + t.name + '</td>' +
+      '<td>' + t.type + '</td>' +
+      '<td><span style="color:' + t.color + '">&#9608;</span></td>' +
+      '<td><a href="' + t.url + '">' + fname + '</a></td>';
+    tbody.appendChild(row);
+  }
+  document.getElementById('igv-btn').onclick = () => {
+    const param = tracks.map(t => t.url + '|' + t.name).join(',');
+    fetch('http://localhost:60151/load?file=' + encodeURIComponent(param))
+      .catch(e => alert('Could not reach IGV at :60151. Make sure IGV is running with the port enabled.'));
+  };
 }
+_initBundle();
 </script>
 """)
     parts.append(_page_footer())
@@ -1432,6 +1484,15 @@ def write_pages(
     # Write bundle.html shell (Phase 3 Task 5)
     write_bundle_shell(out_dir)
     counts["bundle_shell"] = 1
+
+    # Pre-compute the static JSON files matrix.js fetches at runtime
+    # (Phase 4 — static-only mode for S3 + GitHub Pages deployment)
+    try:
+        from build_static_data import build as build_static_data_files
+        summary = build_static_data_files(out_dir / "data")
+        counts["static_data"] = summary["axes"] + summary["matrices"]
+    except Exception as e:
+        counts["static_data"] = f"skipped: {e}"
 
     return counts
 
