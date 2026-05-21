@@ -40,6 +40,8 @@ from api_matrix import router as matrix_router
 app.include_router(matrix_router)
 from api_bundle import router as bundle_router
 app.include_router(bundle_router)
+from api_enrichment import router as enrichment_router
+app.include_router(enrichment_router)
 
 BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
 
