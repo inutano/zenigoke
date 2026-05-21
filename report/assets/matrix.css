@@ -36,3 +36,7 @@
 #selection-panel button { background: #1a9970; color: #fff; border: 0; padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; }
 #selection-panel button:disabled { background: #aaa; cursor: not-allowed; }
 #selection-panel a.secondary { display: block; margin-top: 0.4rem; font-size: 0.85rem; }
+
+#results-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+#results-table th, #results-table td { border: 1px solid #ddd; padding: 4px 8px; }
+#results-table thead th { background: #f4f4f4; }

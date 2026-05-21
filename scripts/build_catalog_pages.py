@@ -150,6 +150,7 @@ def _nav(active: str = "", prefix: str = "") -> str:
         ("strategy/bsseq.html", "BS-Seq"),
         ("summary.html", "Summary"),
         ("methods.html", "Methods"),
+        ("enrichment.html", "Enrichment"),
         ("about.html", "About"),
     ]
     items = []
@@ -174,6 +175,7 @@ def _nav_from_subdir(active: str = "") -> str:
         ("bsseq.html", "BS-Seq"),
         ("../summary.html", "Summary"),
         ("../methods.html", "Methods"),
+        ("../enrichment.html", "Enrichment"),
         ("../about.html", "About"),
     ]
     items = []
@@ -193,6 +195,7 @@ def _nav_from_sample(active: str = "") -> str:
         ("../strategy/bsseq.html", "BS-Seq"),
         ("../summary.html", "Summary"),
         ("../methods.html", "Methods"),
+        ("../enrichment.html", "Enrichment"),
         ("../about.html", "About"),
     ]
     items = []
@@ -398,6 +401,7 @@ def render_index(samples: list[dict]) -> str:
     parts.append("</div>\n")  # .container
 
     parts.append(_data_base_inline_script())
+    parts.append(_api_base_inline_script())
     parts.append("<script src='assets/matrix.js' defer></script>\n")
     parts.append(_page_footer())
     return "".join(parts)
@@ -1027,6 +1031,91 @@ def _data_base_inline_script() -> str:
     return f"<script>window.ZENIGOKE_DATA_BASE='{safe}/';</script>\n"
 
 
+def _api_base_inline_script() -> str:
+    """Inject window.ZENIGOKE_API_BASE for cloud-mode (EC2) builds.
+
+    The build script reads $ZENIGOKE_API_BASE (e.g. https://zenigoke.inutano.com).
+    When set, enrichment.js POSTs to that base. When unset (local dev served by
+    FastAPI), fetch targets same-origin.
+    """
+    base = os.getenv("ZENIGOKE_API_BASE", "").rstrip("/")
+    if not base:
+        return ""
+    safe = base.replace("'", "")
+    return f"<script>window.ZENIGOKE_API_BASE='{safe}';</script>\n"
+
+
+def render_enrichment_page() -> str:
+    parts: list[str] = []
+    parts.append(_page_header("Enrichment — zenigoke"))
+    parts.append(_nav_from_root(active="Enrichment"))
+    parts.append("""<div class='container'>
+  <h1>Enrichment analysis</h1>
+  <p class='subtitle'>Score your regions of interest against the catalog's ChIP/ATAC/BS-Seq peak sets.</p>
+
+  <div class='card'>
+    <h2>1. Upload regions (BED)</h2>
+    <textarea id='bed-input' rows='6'
+              placeholder='chr1&#9;1234&#9;5678&#10;chr1&#9;9000&#9;12000&#10;&#8230;'
+              style='width:100%;font:11px ui-monospace,monospace'></textarea>
+    <p class='label'>Or drop a .bed file here:</p>
+    <input id='bed-file' type='file' accept='.bed,.txt'>
+  </div>
+
+  <div class='card'>
+    <h2>2. Options</h2>
+    <label>q-cutoff: <select id='q-cutoff'>
+      <option value='1e-5'>1e-5</option>
+      <option value='1e-10' selected>1e-10</option>
+      <option value='1e-20'>1e-20</option>
+    </select></label>
+    &nbsp;&nbsp;
+    Strategies:
+    <label><input type='checkbox' class='strat' value='ChIP-Seq' checked> ChIP-Seq</label>
+    <label><input type='checkbox' class='strat' value='ATAC-Seq' checked> ATAC-Seq</label>
+    <label><input type='checkbox' class='strat' value='Bisulfite-Seq' checked> BS-Seq</label>
+  </div>
+
+  <div class='card'>
+    <button id='run-btn'>&#9654; Run enrichment</button>
+    <span id='run-status'></span>
+  </div>
+
+  <div class='card' id='results-card' style='display:none'>
+    <h2>3. Results</h2>
+    <p class='label' id='results-summary'></p>
+    <div style='overflow-x:auto'>
+      <table id='results-table'>
+        <thead><tr>
+          <th data-col='rank'>#</th>
+          <th data-col='accession'>accession</th>
+          <th data-col='antibody'>antibody</th>
+          <th data-col='strain'>strain</th>
+          <th data-col='stage'>stage</th>
+          <th data-col='overlap'>overlap</th>
+          <th data-col='fold'>fold</th>
+          <th data-col='p'>p-value</th>
+          <th data-col='q'>q-value</th>
+          <th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p>
+      <button id='top10-igv'>&#9654; Open top 10 in IGV</button>
+      <button id='download-csv'>&darr; Download CSV</button>
+    </p>
+  </div>
+</div>
+<script>window.ZENIGOKE_API_BASE = window.ZENIGOKE_API_BASE || '';</script>
+<script src='assets/matrix.js' defer></script>
+<script src='assets/enrichment.js' defer></script>
+""")
+    parts.append(_api_base_inline_script())
+    parts.append(_page_footer())
+    return "".join(parts)
+
+
 def render_bundle_shell() -> str:
     """Static drilldown page. Reads accessions/q from URL params (no server
     lookup needed) — works on GitHub Pages with no backend.
@@ -1441,6 +1530,7 @@ def write_pages(
         "strategy": 0,
         "summary": 0,
         "methods": 0,
+        "enrichment": 0,
         "about": 0,
     }
 
@@ -1476,6 +1566,10 @@ def write_pages(
     # Write methods.html (Item 16)
     (out_dir / "methods.html").write_text(render_methods())
     counts["methods"] = 1
+
+    # Write enrichment.html (Phase 5 Task 2)
+    (out_dir / "enrichment.html").write_text(render_enrichment_page())
+    counts["enrichment"] = 1
 
     # Write about.html (Item 17)
     (out_dir / "about.html").write_text(render_about())
