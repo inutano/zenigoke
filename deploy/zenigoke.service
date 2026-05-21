@@ -1,6 +1,7 @@
 [Unit]
 Description=Zenigoke catalog (FastAPI + uvicorn)
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
@@ -10,6 +11,8 @@ EnvironmentFile=/etc/zenigoke.env
 ExecStart=/home/ubuntu/.local/bin/uvicorn server:app --host 127.0.0.1 --port 8088 --app-dir scripts
 Restart=on-failure
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

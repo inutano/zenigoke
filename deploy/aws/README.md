@@ -75,9 +75,93 @@ No AWS credentials needed in GitHub Secrets — the bucket is public-read.
 
 `python3 scripts/server.py` still serves the FastAPI version of the catalog over Tailscale, including the consensus-track API. The static build emits the same artifacts but with S3-flavored track URLs.
 
+## Mode B (optional): EC2 API for enrichment analysis
+
+Adds a `t3.small` in Tokyo running the FastAPI app with a new
+`POST /api/enrichment` endpoint (bedtools intersect + binomial test
+against the catalogued experiments). The static Pages frontend gains an
+`/enrichment.html` page that calls this API.
+
+**Cost:** ~$15/mo on top of the static path.
+**DNS:** requires a real domain (the scripts assume `zenigoke.inutano.com`;
+override `ZENIGOKE_DOMAIN` to use another).
+
+### Launch + bootstrap
+
+```bash
+# 1. Launch EC2 + EIP + security group (idempotent)
+bash deploy/aws/03-launch-ec2.sh
+# → prints the public IP at the end. Save it.
+
+# 2. Set DNS in your domain panel:
+#    A record: zenigoke.inutano.com → <the EIP from step 1>
+#    Wait for propagation (5–30 min).
+
+# 3. SSH into the instance and bootstrap:
+ssh -i ~/.ssh/zenigoke.pem ubuntu@<EIP>
+git clone https://github.com/<you>/zenigoke.git
+cd zenigoke
+bash deploy/aws/04-ec2-bootstrap.sh
+#   - installs python3-pip, scipy, bedtools, caddy
+#   - syncs ~400 MB of peak files from S3 to /home/ubuntu/zenigoke-data
+#   - writes /etc/zenigoke.env
+#   - installs systemd unit + caddy
+#   - caddy auto-issues Let's Encrypt cert for zenigoke.inutano.com
+```
+
+### Trigger Pages rebuild
+
+After the API is live, push an empty commit so the frontend rebuild
+picks up the `ZENIGOKE_API_BASE` env baked into `.github/workflows/pages.yml`:
+
+```bash
+git commit --allow-empty -m "trigger Pages rebuild for enrichment API"
+git push origin main
+```
+
+### Verify
+
+```bash
+# from anywhere:
+curl https://zenigoke.inutano.com/api/axes | head -c 200
+# from the EC2 instance:
+sudo systemctl status zenigoke caddy
+sudo journalctl -u zenigoke -n 50
+```
+
+Then open `https://<you>.github.io/zenigoke/enrichment.html`, paste a
+small BED, click Run. Expect results within ~30 seconds.
+
+### Updating after a catalog refresh
+
+When peak files change, re-sync to the EC2:
+
+```bash
+ssh -i ~/.ssh/zenigoke.pem ubuntu@<EIP>
+cd zenigoke
+git pull
+bash deploy/aws/04-ec2-bootstrap.sh   # idempotent; only changed files re-sync
+sudo systemctl restart zenigoke
+```
+
+### Tearing down mode B
+
+```bash
+INST_ID=$(aws ec2 describe-instances --region ap-northeast-1 \
+  --filters 'Name=tag:Name,Values=zenigoke-api' \
+  --query 'Reservations[0].Instances[0].InstanceId' --output text)
+aws ec2 terminate-instances --region ap-northeast-1 --instance-ids "$INST_ID"
+aws ec2 release-address --region ap-northeast-1 \
+  --allocation-id "$(aws ec2 describe-addresses --region ap-northeast-1 \
+    --filters 'Name=tag:Name,Values=zenigoke-api' \
+    --query 'Addresses[0].AllocationId' --output text)"
+```
+
 ## Adding consensus tracks back later
 
-If you want server-side `bedtools merge`, launch an EC2 t3.small in the same region, install `bedtools`, run `python3 scripts/server.py`, and point a custom domain at the IP. The Caddyfile and systemd unit in `../` cover that.
+The consensus-track Phase 3 endpoint (`/api/bundle`) is also enabled when
+mode B is active — same FastAPI process. Per-sample tracks always work
+in static mode; consensus is a mode B bonus.
 
 ## CORS
 

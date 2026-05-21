@@ -25,11 +25,15 @@ REPORT_DIR = pathlib.Path(os.getenv("ZENIGOKE_REPORT_DIR", REPO_ROOT / "report")
 BUNDLES_DIR = pathlib.Path(os.getenv("ZENIGOKE_BUNDLES_DIR", REPORT_DIR / "bundles"))
 DB_PATH = pathlib.Path(os.getenv("ZENIGOKE_DB_PATH", REPO_ROOT / "db" / "kknmsmd.db"))
 CORS_ORIGIN = os.getenv("ZENIGOKE_CORS_ORIGIN", "*")
+if CORS_ORIGIN == "*":
+    _allow_origins = ["*"]
+else:
+    _allow_origins = [o.strip() for o in CORS_ORIGIN.split(",") if o.strip()]
 
 app = FastAPI(title="zenigoke", version="phase3")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[CORS_ORIGIN] if CORS_ORIGIN != "*" else ["*"],
+    allow_origins=_allow_origins,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -40,6 +44,8 @@ from api_matrix import router as matrix_router
 app.include_router(matrix_router)
 from api_bundle import router as bundle_router
 app.include_router(bundle_router)
+from api_enrichment import router as enrichment_router
+app.include_router(enrichment_router)
 
 BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
 

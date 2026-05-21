@@ -249,4 +249,7 @@ function escapeAttr(s) {
   return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
+window.tracksForAccession = tracksForAccession;
+window.resolveStrategy = resolveStrategy;
+
 init();
