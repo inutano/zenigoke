@@ -51,6 +51,7 @@ jobs:
       - name: Build static catalog with S3-prefixed track URLs
         env:
           ZENIGOKE_DATA_BASE: "https://${{ env.ZENIGOKE_BUCKET }}.s3.${{ env.AWS_REGION }}.amazonaws.com/"
+          ZENIGOKE_API_BASE:  "https://zenigoke.inutano.com"
         run: python3 scripts/build-catalog-pages.py
 
       - name: Sanity check the built artifacts
