@@ -1,7 +1,7 @@
 {
   "CORSRules": [
     {
-      "AllowedOrigins": ["https://*.github.io", "http://localhost:8088", "http://*.tail*.ts.net"],
+      "AllowedOrigins": ["https://*.github.io", "http://localhost:8088", "https://*.ts.net"],
       "AllowedMethods": ["GET", "HEAD"],
       "AllowedHeaders": ["Range", "Content-Type"],
       "ExposeHeaders": ["Accept-Ranges", "Content-Length", "Content-Range", "ETag"],
