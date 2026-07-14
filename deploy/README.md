@@ -39,7 +39,7 @@ ZENIGOKE_DB_PATH=/home/ubuntu/zenigoke/db/kknmsmd.db
 ZENIGOKE_REPORT_DIR=/home/ubuntu/zenigoke/report
 ZENIGOKE_BUNDLES_DIR=/home/ubuntu/zenigoke/report/bundles
 ZENIGOKE_PUBLIC_BASE=https://api.zenigoke.example.com
-ZENIGOKE_BUNDLES_PUBLIC=https://zenigoke-catalog.s3.amazonaws.com/bundles
+ZENIGOKE_BUNDLES_PUBLIC=https://zenigoke-catalog-dsc.s3.amazonaws.com/bundles
 ZENIGOKE_CORS_ORIGIN=https://<user>.github.io
 EOF'
 

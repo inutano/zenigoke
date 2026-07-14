@@ -55,7 +55,7 @@ The workflow downloads `db/kknmsmd.db` from S3 at build time, so the DB on S3 is
 
 1. Checks out the repo on `ubuntu-latest`.
 2. Installs Python + `requirements.txt`.
-3. Downloads `s3://zenigoke-catalog/db/kknmsmd.db` (anonymous HTTPS — bucket is public-read).
+3. Downloads `s3://zenigoke-catalog-dsc/db/kknmsmd.db` (anonymous HTTPS — bucket is public-read).
 4. Runs `python3 scripts/build-catalog-pages.py` with `ZENIGOKE_DATA_BASE` set to the S3 HTTPS URL, so each per-sample track link in the static pages points at S3.
 5. Publishes `report/` to the `gh-pages` branch via `peaceiris/actions-gh-pages`.
 
@@ -170,5 +170,5 @@ in static mode; consensus is a mode B bonus.
 ## Tearing down
 
 ```bash
-aws s3 rb s3://zenigoke-catalog --force --region ap-northeast-1
+aws s3 rb s3://zenigoke-catalog-dsc --force --region ap-northeast-1
 ```

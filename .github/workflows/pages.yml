@@ -19,7 +19,7 @@ on:
 
 env:
   AWS_REGION: ap-northeast-1
-  ZENIGOKE_BUCKET: zenigoke-catalog
+  ZENIGOKE_BUCKET: zenigoke-catalog-dsc
 
 permissions:
   contents: write

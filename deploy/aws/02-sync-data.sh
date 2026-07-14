@@ -5,10 +5,10 @@
 # Usage:
 #   bash deploy/aws/02-sync-data.sh [BUCKET_NAME]
 #
-# Defaults: BUCKET_NAME=zenigoke-catalog  SOURCE=/data1/zenigoke/output
+# Defaults: BUCKET_NAME=zenigoke-catalog-dsc  SOURCE=/data1/zenigoke/output
 set -euo pipefail
 
-BUCKET="${1:-${ZENIGOKE_BUCKET:-zenigoke-catalog}}"
+BUCKET="${1:-${ZENIGOKE_BUCKET:-zenigoke-catalog-dsc}}"
 REGION="${ZENIGOKE_REGION:-ap-northeast-1}"
 SOURCE="${ZENIGOKE_OUTPUT_DIR:-/data1/zenigoke/output}"
 

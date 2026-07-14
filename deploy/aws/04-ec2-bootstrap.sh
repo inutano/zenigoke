@@ -4,7 +4,7 @@
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/inutano/zenigoke.git}"
-BUCKET="${ZENIGOKE_BUCKET:-zenigoke-catalog}"
+BUCKET="${ZENIGOKE_BUCKET:-zenigoke-catalog-dsc}"
 REGION="${ZENIGOKE_REGION:-ap-northeast-1}"
 DOMAIN="${ZENIGOKE_DOMAIN:-zenigoke.inutano.com}"
 

@@ -5,10 +5,10 @@
 # Usage:
 #   bash deploy/aws/01-bucket.sh [BUCKET_NAME]
 #
-# Defaults: BUCKET_NAME=zenigoke-catalog  REGION=ap-northeast-1
+# Defaults: BUCKET_NAME=zenigoke-catalog-dsc  REGION=ap-northeast-1
 set -euo pipefail
 
-BUCKET="${1:-${ZENIGOKE_BUCKET:-zenigoke-catalog}}"
+BUCKET="${1:-${ZENIGOKE_BUCKET:-zenigoke-catalog-dsc}}"
 REGION="${ZENIGOKE_REGION:-ap-northeast-1}"
 CORS_FILE="$(dirname "$0")/../s3-cors.json"
 
