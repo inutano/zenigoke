@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>About — zenigoke catalog</title>
+<link rel='stylesheet' href='assets/style.css'>
+</head>
+<body>
+<nav>
+<a href="index.html">Matrix</a>
+<a href="browse.html">Browse</a>
+<a href="strategy/chipseq.html">ChIP-Seq</a>
+<a href="strategy/atacseq.html">ATAC-Seq</a>
+<a href="strategy/bsseq.html">BS-Seq</a>
+<a href="summary.html">Summary</a>
+<a href="methods.html">Methods</a>
+<a href="enrichment.html">Enrichment</a>
+<a href="about.html" class="active">About</a>
+</nav>
+<div class="container">
+<h1>About This Catalog</h1>
+<div class="card">
+<h2>What is this?</h2>
+<p>The <strong>zenigoke catalog</strong> is a static HTML catalog of public SRA experiments for <em>Marchantia polymorpha</em> (liverwort) processed through standardized epigenomics pipelines. It covers ChIP-Seq, ATAC-Seq, and Bisulfite-Seq data aligned to the MpTak v7.1 standard genome. The catalog was built in 2026 as part of a project to systematically characterize the Marchantia epigenome from publicly available data.</p>
+<p>Contact: <em>&lt;contact info to be added&gt;</em></p>
+</div>
+<div class="card">
+<h2>Data Use</h2>
+<p>All sequencing data originates from public SRA submissions and was processed locally. The processed outputs (BigWig, peak BED files, methylation tracks) are made available for collaboration and research use. We encourage you to cite the original data depositors when using this resource.</p>
+<p>Suggested attribution / citation:</p>
+<ul>
+<li>Pipeline: <a href="https://github.com/inutano/chip-atlas-pipeline-v2" target="_blank">chip-atlas-pipeline-v2</a> (inutano/chip-atlas-pipeline-v2)</li>
+<li>Metadata curation: dbcls/bsllmner-mk2 — <a href="https://doi.org/10.1101/2025.02.17.638570" target="_blank">doi:10.1101/2025.02.17.638570</a></li>
+<li>Reference genome: MarpolBase MpTak v7.1 — <a href="https://marchantia.info" target="_blank">marchantia.info</a></li>
+</ul>
+</div>
+<div class="card">
+<h2>Database Schema &amp; Queries</h2>
+<p>The catalog is backed by a SQLite database at <code>db/kknmsmd.db</code>. You can query it directly:</p>
+<pre class="log">sqlite3 db/kknmsmd.db "SELECT accession, library_strategy, mapping_rate FROM sample WHERE library_strategy='ChIP-Seq' ORDER BY mapping_rate DESC LIMIT 10"</pre>
+<p>Tables: <code>sample</code>, <code>sample_curation</code>, <code>sample_chipseq</code>, <code>sample_bsseq</code>.</p>
+</div>
+</div>
+
+</body>
+</html>

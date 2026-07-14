@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Enrichment — zenigoke</title>
+<link rel='stylesheet' href='assets/style.css'>
+</head>
+<body>
+<nav>
+<a href="index.html">Matrix</a>
+<a href="browse.html">Browse</a>
+<a href="strategy/chipseq.html">ChIP-Seq</a>
+<a href="strategy/atacseq.html">ATAC-Seq</a>
+<a href="strategy/bsseq.html">BS-Seq</a>
+<a href="summary.html">Summary</a>
+<a href="methods.html">Methods</a>
+<a href="enrichment.html" class="active">Enrichment</a>
+<a href="about.html">About</a>
+</nav>
+<div class='container'>
+  <h1>Enrichment analysis</h1>
+  <p class='subtitle'>Score your regions of interest against the catalog's ChIP/ATAC/BS-Seq peak sets.</p>
+
+  <div class='card'>
+    <h2>1. Upload regions (BED)</h2>
+    <textarea id='bed-input' rows='6'
+              placeholder='chr1&#9;1234&#9;5678&#10;chr1&#9;9000&#9;12000&#10;&#8230;'
+              style='width:100%;font:11px ui-monospace,monospace'></textarea>
+    <p class='label'>Or drop a .bed file here:</p>
+    <input id='bed-file' type='file' accept='.bed,.txt'>
+  </div>
+
+  <div class='card'>
+    <h2>2. Options</h2>
+    <label>q-cutoff: <select id='q-cutoff'>
+      <option value='1e-5'>1e-5</option>
+      <option value='1e-10' selected>1e-10</option>
+      <option value='1e-20'>1e-20</option>
+    </select></label>
+    &nbsp;&nbsp;
+    Strategies:
+    <label><input type='checkbox' class='strat' value='ChIP-Seq' checked> ChIP-Seq</label>
+    <label><input type='checkbox' class='strat' value='ATAC-Seq' checked> ATAC-Seq</label>
+    <label><input type='checkbox' class='strat' value='Bisulfite-Seq' checked> BS-Seq</label>
+  </div>
+
+  <div class='card'>
+    <button id='run-btn'>&#9654; Run enrichment</button>
+    <span id='run-status'></span>
+  </div>
+
+  <div class='card' id='results-card' style='display:none'>
+    <h2>3. Results</h2>
+    <p class='label' id='results-summary'></p>
+    <div style='overflow-x:auto'>
+      <table id='results-table'>
+        <thead><tr>
+          <th data-col='rank'>#</th>
+          <th data-col='accession'>accession</th>
+          <th data-col='antibody'>antibody</th>
+          <th data-col='strain'>strain</th>
+          <th data-col='stage'>stage</th>
+          <th data-col='overlap'>overlap</th>
+          <th data-col='fold'>fold</th>
+          <th data-col='p'>p-value</th>
+          <th data-col='q'>q-value</th>
+          <th></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p>
+      <button id='top10-igv'>&#9654; Open top 10 in IGV</button>
+      <button id='download-csv'>&darr; Download CSV</button>
+    </p>
+  </div>
+</div>
+<script>window.ZENIGOKE_API_BASE = window.ZENIGOKE_API_BASE || '';</script>
+<script src='assets/matrix.js' defer></script>
+<script src='assets/enrichment.js' defer></script>
+<script>window.ZENIGOKE_API_BASE='https://zenigoke.inutano.com';</script>
+
+</body>
+</html>

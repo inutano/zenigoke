@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Browse — zenigoke catalog</title>
+<link rel='stylesheet' href='assets/style.css'>
+</head>
+<body>
+<nav>
+<a href="index.html">Matrix</a>
+<a href="browse.html" class="active">Browse</a>
+<a href="strategy/chipseq.html">ChIP-Seq</a>
+<a href="strategy/atacseq.html">ATAC-Seq</a>
+<a href="strategy/bsseq.html">BS-Seq</a>
+<a href="summary.html">Summary</a>
+<a href="methods.html">Methods</a>
+<a href="enrichment.html">Enrichment</a>
+<a href="about.html">About</a>
+</nav>
+<div class="container">
+<h1>Browse all samples</h1>
+<div class="card info-card">
+<h2>What is this?</h2>
+<p><strong>zenigoke catalog &mdash; Marchantia polymorpha multiomics</strong><br>
+157 SRA experiments (90 ChIP-Seq, 36 ATAC-Seq, 31 Bisulfite-Seq) processed against the <strong>MpTak v7.1 standard genome</strong> from MarpolBase. Pipelines: <strong>chip-atlas-pipeline-v2</strong> (v1.0.0 for ChIP/ATAC, v1.1.0 for BS-seq, plant fork local). Metadata curation via <strong>dbcls/bsllmner-mk2</strong> with <code>qwen3:27b</code>.</p>
+<p>Build: 2026-07-14. Catalog DB: <code>db/kknmsmd.db</code>.</p>
+</div>
+<div class="card summary-card">
+<p><strong>157</strong> samples &mdash; <span class='ok'>156 ok</span>, <span class='failed'>1 failed</span></p>
+<p><span class='badge'>ATAC-Seq: 36</span><span class='badge'>Bisulfite-Seq: 31</span><span class='badge'>ChIP-Seq: 90</span></p>
+</div>
+<div class="chip-row">
+<button class="chip" data-filter="ChIP-Seq">ChIP-Seq</button>
+<button class="chip" data-filter="ATAC-Seq">ATAC-Seq</button>
+<button class="chip" data-filter="Bisulfite-Seq">BS-Seq</button>
+<button class="chip" data-filter="thallus">thallus</button>
+<button class="chip" data-filter="Tak-1">Tak-1</button>
+<button class="chip" data-filter="H3K27me3">H3K27me3</button>
+<button class="chip" data-filter="H3K4me3">H3K4me3</button>
+<button class="chip" data-filter="">Reset</button>
+</div>
+<div class="filter-row">
+<input id="q" type="text" placeholder="filter&hellip;" autocomplete="off">
+<span id="filter-count">157 of 157</span>
+</div>
+<table id="samples-table">
+<thead>
+<tr>
+<th data-col="0">accession</th>
+<th data-col="1">strategy</th>
+<th data-col="2">status</th>
+<th data-col="3">tissue</th>
+<th data-col="4">dev_stage</th>
+<th data-col="5">strain</th>
+<th data-col="6">antibody</th>
+<th data-col="7">mapping_rate</th>
+<th data-col="8">elapsed_min</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr class="ok">
+<td><a href="samples/SRX22603366.html">SRX22603366</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>57.3</td>
+<td>6.1</td>
+<td><a href="samples/SRX22603366.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX22603367.html">SRX22603367</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>49.4</td>
+<td>4.3</td>
+<td><a href="samples/SRX22603367.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755071.html">SRX27755071</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>43.6</td>
+<td>51.1</td>
+<td><a href="samples/SRX27755071.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755072.html">SRX27755072</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>49.6</td>
+<td>56.5</td>
+<td><a href="samples/SRX27755072.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755073.html">SRX27755073</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>57.9</td>
+<td>52.3</td>
+<td><a href="samples/SRX27755073.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755074.html">SRX27755074</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>66.2</td>
+<td>62.8</td>
+<td><a href="samples/SRX27755074.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755075.html">SRX27755075</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>45.0</td>
+<td>24.1</td>
+<td><a href="samples/SRX27755075.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755076.html">SRX27755076</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>42.1</td>
+<td>27.8</td>
+<td><a href="samples/SRX27755076.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755077.html">SRX27755077</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>71.2</td>
+<td>27.1</td>
+<td><a href="samples/SRX27755077.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755078.html">SRX27755078</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>71.4</td>
+<td>33.4</td>
+<td><a href="samples/SRX27755078.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755079.html">SRX27755079</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>51.5</td>
+<td>31.0</td>
+<td><a href="samples/SRX27755079.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755080.html">SRX27755080</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>41.4</td>
+<td>29.5</td>
+<td><a href="samples/SRX27755080.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755081.html">SRX27755081</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>52.8</td>
+<td>30.2</td>
+<td><a href="samples/SRX27755081.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755082.html">SRX27755082</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>55.6</td>
+<td>30.3</td>
+<td><a href="samples/SRX27755082.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755083.html">SRX27755083</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>61.6</td>
+<td>30.4</td>
+<td><a href="samples/SRX27755083.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755084.html">SRX27755084</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>61.5</td>
+<td>23.4</td>
+<td><a href="samples/SRX27755084.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755085.html">SRX27755085</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>66.1</td>
+<td>26.5</td>
+<td><a href="samples/SRX27755085.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755086.html">SRX27755086</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>63.0</td>
+<td>29.1</td>
+<td><a href="samples/SRX27755086.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755087.html">SRX27755087</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>72.9</td>
+<td>23.2</td>
+<td><a href="samples/SRX27755087.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755088.html">SRX27755088</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>74.2</td>
+<td>27.4</td>
+<td><a href="samples/SRX27755088.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755089.html">SRX27755089</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>73.2</td>
+<td>21.7</td>
+<td><a href="samples/SRX27755089.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755090.html">SRX27755090</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>78.4</td>
+<td>27.3</td>
+<td><a href="samples/SRX27755090.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755091.html">SRX27755091</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>66.1</td>
+<td>22.9</td>
+<td><a href="samples/SRX27755091.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755092.html">SRX27755092</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>77.0</td>
+<td>26.4</td>
+<td><a href="samples/SRX27755092.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755093.html">SRX27755093</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>69.6</td>
+<td>21.0</td>
+<td><a href="samples/SRX27755093.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755094.html">SRX27755094</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1-ko</td>
+<td>&mdash;</td>
+<td>77.1</td>
+<td>26.4</td>
+<td><a href="samples/SRX27755094.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755095.html">SRX27755095</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>79.2</td>
+<td>26.9</td>
+<td><a href="samples/SRX27755095.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755096.html">SRX27755096</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>67.4</td>
+<td>25.0</td>
+<td><a href="samples/SRX27755096.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755097.html">SRX27755097</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>62.6</td>
+<td>23.0</td>
+<td><a href="samples/SRX27755097.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755098.html">SRX27755098</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfb1-ko</td>
+<td>&mdash;</td>
+<td>69.0</td>
+<td>21.6</td>
+<td><a href="samples/SRX27755098.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755099.html">SRX27755099</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>61.9</td>
+<td>25.5</td>
+<td><a href="samples/SRX27755099.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755100.html">SRX27755100</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>63.9</td>
+<td>28.8</td>
+<td><a href="samples/SRX27755100.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755101.html">SRX27755101</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>63.8</td>
+<td>26.5</td>
+<td><a href="samples/SRX27755101.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX27755102.html">SRX27755102</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>hsfa1/hsfb1, ko</td>
+<td>&mdash;</td>
+<td>67.2</td>
+<td>22.6</td>
+<td><a href="samples/SRX27755102.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548538.html">SRX7548538</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>90.4</td>
+<td>20.5</td>
+<td><a href="samples/SRX7548538.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548539.html">SRX7548539</a></td>
+<td>ATAC-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>91.0</td>
+<td>28.3</td>
+<td><a href="samples/SRX7548539.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/DRX162963.html">DRX162963</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gametophyte</td>
+<td>Tak-1_BC</td>
+<td>&mdash;</td>
+<td>13.3</td>
+<td>18.0</td>
+<td><a href="samples/DRX162963.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/DRX162964.html">DRX162964</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1_BC</td>
+<td>&mdash;</td>
+<td>9.2</td>
+<td>9.0</td>
+<td><a href="samples/DRX162964.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/DRX162965.html">DRX162965</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Mpmet-3 mutant</td>
+<td>&mdash;</td>
+<td>68.1</td>
+<td>7.0</td>
+<td><a href="samples/DRX162965.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/DRX162966.html">DRX162966</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Mpmet-3 mutant</td>
+<td>&mdash;</td>
+<td>69.9</td>
+<td>21.0</td>
+<td><a href="samples/DRX162966.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX1060228.html">SRX1060228</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>78.6</td>
+<td>30.0</td>
+<td><a href="samples/SRX1060228.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX20670880.html">SRX20670880</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>71.0</td>
+<td>9.0</td>
+<td><a href="samples/SRX20670880.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX20670881.html">SRX20670881</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpmet</td>
+<td>&mdash;</td>
+<td>72.1</td>
+<td>11.0</td>
+<td><a href="samples/SRX20670881.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613724.html">SRX2613724</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>58.6</td>
+<td>13.0</td>
+<td><a href="samples/SRX2613724.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613725.html">SRX2613725</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>71.6</td>
+<td>14.0</td>
+<td><a href="samples/SRX2613725.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613726.html">SRX2613726</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>70.7</td>
+<td>14.0</td>
+<td><a href="samples/SRX2613726.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613727.html">SRX2613727</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>73.8</td>
+<td>19.0</td>
+<td><a href="samples/SRX2613727.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613728.html">SRX2613728</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>73.2</td>
+<td>13.0</td>
+<td><a href="samples/SRX2613728.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613729.html">SRX2613729</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>62.3</td>
+<td>16.0</td>
+<td><a href="samples/SRX2613729.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613730.html">SRX2613730</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>archegoniophore</td>
+<td>Tak-2</td>
+<td>&mdash;</td>
+<td>62.8</td>
+<td>15.0</td>
+<td><a href="samples/SRX2613730.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613731.html">SRX2613731</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>archegoniophore</td>
+<td>Tak-2</td>
+<td>&mdash;</td>
+<td>13.0</td>
+<td>10.0</td>
+<td><a href="samples/SRX2613731.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613732.html">SRX2613732</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>archegoniophore</td>
+<td>Tak-2</td>
+<td>&mdash;</td>
+<td>56.6</td>
+<td>13.0</td>
+<td><a href="samples/SRX2613732.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613733.html">SRX2613733</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>88.2</td>
+<td>17.0</td>
+<td><a href="samples/SRX2613733.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613734.html">SRX2613734</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>92.1</td>
+<td>24.0</td>
+<td><a href="samples/SRX2613734.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613735.html">SRX2613735</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>87.1</td>
+<td>20.0</td>
+<td><a href="samples/SRX2613735.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613736.html">SRX2613736</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>&mdash;</td>
+<td>52.6</td>
+<td>13.0</td>
+<td><a href="samples/SRX2613736.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613737.html">SRX2613737</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>&mdash;</td>
+<td>57.2</td>
+<td>9.0</td>
+<td><a href="samples/SRX2613737.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613738.html">SRX2613738</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>&mdash;</td>
+<td>49.6</td>
+<td>10.0</td>
+<td><a href="samples/SRX2613738.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613739.html">SRX2613739</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>&mdash;</td>
+<td>51.2</td>
+<td>11.0</td>
+<td><a href="samples/SRX2613739.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613740.html">SRX2613740</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>&mdash;</td>
+<td>50.4</td>
+<td>8.0</td>
+<td><a href="samples/SRX2613740.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613741.html">SRX2613741</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>&mdash;</td>
+<td>50.5</td>
+<td>13.0</td>
+<td><a href="samples/SRX2613741.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613742.html">SRX2613742</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>55.9</td>
+<td>9.0</td>
+<td><a href="samples/SRX2613742.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613743.html">SRX2613743</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>50.9</td>
+<td>10.0</td>
+<td><a href="samples/SRX2613743.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613744.html">SRX2613744</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>42.3</td>
+<td>9.0</td>
+<td><a href="samples/SRX2613744.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613745.html">SRX2613745</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>10.4</td>
+<td>4.0</td>
+<td><a href="samples/SRX2613745.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613746.html">SRX2613746</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>&mdash;</td>
+<td>46.0</td>
+<td>9.0</td>
+<td><a href="samples/SRX2613746.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX2613747.html">SRX2613747</a></td>
+<td>Bisulfite-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>50.4</td>
+<td>10.0</td>
+<td><a href="samples/SRX2613747.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX15503703.html">SRX15503703</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>21.3</td>
+<td>21.5</td>
+<td><a href="samples/SRX15503703.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX15503704.html">SRX15503704</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>20.9</td>
+<td>23.9</td>
+<td><a href="samples/SRX15503704.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX15503705.html">SRX15503705</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpHSFA1V-tagRFP overexpression</td>
+<td>HSFA1V</td>
+<td>17.6</td>
+<td>27.1</td>
+<td><a href="samples/SRX15503705.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX15503706.html">SRX15503706</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpHSFA1V-tagRFP overexpression</td>
+<td>HSFA1V</td>
+<td>19.1</td>
+<td>24.7</td>
+<td><a href="samples/SRX15503706.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX22603362.html">SRX22603362</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>GLK</td>
+<td>57.8</td>
+<td>4.1</td>
+<td><a href="samples/SRX22603362.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX22603363.html">SRX22603363</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>GLK</td>
+<td>47.0</td>
+<td>8.3</td>
+<td><a href="samples/SRX22603363.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX22603364.html">SRX22603364</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>GLK</td>
+<td>62.0</td>
+<td>9.6</td>
+<td><a href="samples/SRX22603364.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX22603365.html">SRX22603365</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>GLK</td>
+<td>60.9</td>
+<td>9.3</td>
+<td><a href="samples/SRX22603365.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX22603368.html">SRX22603368</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K4me3</td>
+<td>70.5</td>
+<td>9.1</td>
+<td><a href="samples/SRX22603368.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX22603369.html">SRX22603369</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K4me3</td>
+<td>77.2</td>
+<td>9.4</td>
+<td><a href="samples/SRX22603369.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617444.html">SRX29617444</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A.Z</td>
+<td>88.1</td>
+<td>3.4</td>
+<td><a href="samples/SRX29617444.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617445.html">SRX29617445</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A.Z</td>
+<td>91.4</td>
+<td>4.4</td>
+<td><a href="samples/SRX29617445.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617446.html">SRX29617446</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A.X</td>
+<td>90.1</td>
+<td>5.4</td>
+<td><a href="samples/SRX29617446.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617447.html">SRX29617447</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A.X</td>
+<td>91.0</td>
+<td>4.5</td>
+<td><a href="samples/SRX29617447.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617448.html">SRX29617448</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A.X</td>
+<td>87.3</td>
+<td>4.5</td>
+<td><a href="samples/SRX29617448.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617449.html">SRX29617449</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A.X</td>
+<td>81.9</td>
+<td>4.0</td>
+<td><a href="samples/SRX29617449.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617450.html">SRX29617450</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A</td>
+<td>83.1</td>
+<td>7.5</td>
+<td><a href="samples/SRX29617450.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617451.html">SRX29617451</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A</td>
+<td>84.6</td>
+<td>7.6</td>
+<td><a href="samples/SRX29617451.html">&rarr;</a></td>
+</tr>
+<tr class="failed">
+<td><a href="samples/SRX29617452.html">SRX29617452</a></td>
+<td>ChIP-Seq</td>
+<td class="failed">failed</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A</td>
+<td></td>
+<td></td>
+<td><a href="samples/SRX29617452.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617453.html">SRX29617453</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>input</td>
+<td>57.2</td>
+<td>4.4</td>
+<td><a href="samples/SRX29617453.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617454.html">SRX29617454</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>input</td>
+<td>59.7</td>
+<td>4.4</td>
+<td><a href="samples/SRX29617454.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617455.html">SRX29617455</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>input</td>
+<td>76.1</td>
+<td>10.8</td>
+<td><a href="samples/SRX29617455.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617456.html">SRX29617456</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K27me3</td>
+<td>40.9</td>
+<td>11.4</td>
+<td><a href="samples/SRX29617456.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617457.html">SRX29617457</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K27me3</td>
+<td>49.7</td>
+<td>11.2</td>
+<td><a href="samples/SRX29617457.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617458.html">SRX29617458</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K27me1</td>
+<td>78.3</td>
+<td>26.8</td>
+<td><a href="samples/SRX29617458.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617459.html">SRX29617459</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K27me1</td>
+<td>80.0</td>
+<td>29.5</td>
+<td><a href="samples/SRX29617459.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617460.html">SRX29617460</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K9me1</td>
+<td>82.0</td>
+<td>16.1</td>
+<td><a href="samples/SRX29617460.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617461.html">SRX29617461</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K9me1</td>
+<td>80.9</td>
+<td>31.6</td>
+<td><a href="samples/SRX29617461.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617462.html">SRX29617462</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K4me3</td>
+<td>73.6</td>
+<td>13.8</td>
+<td><a href="samples/SRX29617462.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617463.html">SRX29617463</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3K4me3</td>
+<td>77.7</td>
+<td>19.4</td>
+<td><a href="samples/SRX29617463.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617464.html">SRX29617464</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2Aub</td>
+<td>57.9</td>
+<td>15.5</td>
+<td><a href="samples/SRX29617464.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617465.html">SRX29617465</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2Aub</td>
+<td>55.7</td>
+<td>18.1</td>
+<td><a href="samples/SRX29617465.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617466.html">SRX29617466</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H2A</td>
+<td>81.7</td>
+<td>24.3</td>
+<td><a href="samples/SRX29617466.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617467.html">SRX29617467</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>H3</td>
+<td>81.7</td>
+<td>14.2</td>
+<td><a href="samples/SRX29617467.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617468.html">SRX29617468</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>input</td>
+<td>79.5</td>
+<td>9.8</td>
+<td><a href="samples/SRX29617468.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617469.html">SRX29617469</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>input</td>
+<td>78.1</td>
+<td>13.7</td>
+<td><a href="samples/SRX29617469.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617470.html">SRX29617470</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K27me3</td>
+<td>31.1</td>
+<td>12.8</td>
+<td><a href="samples/SRX29617470.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617471.html">SRX29617471</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K27me3</td>
+<td>40.0</td>
+<td>7.8</td>
+<td><a href="samples/SRX29617471.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617472.html">SRX29617472</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K27me1</td>
+<td>80.6</td>
+<td>24.4</td>
+<td><a href="samples/SRX29617472.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617473.html">SRX29617473</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K27me1</td>
+<td>80.2</td>
+<td>24.2</td>
+<td><a href="samples/SRX29617473.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617474.html">SRX29617474</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K9me1</td>
+<td>82.2</td>
+<td>30.1</td>
+<td><a href="samples/SRX29617474.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617475.html">SRX29617475</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K9me1</td>
+<td>81.6</td>
+<td>31.2</td>
+<td><a href="samples/SRX29617475.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617476.html">SRX29617476</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K4me3</td>
+<td>79.9</td>
+<td>21.3</td>
+<td><a href="samples/SRX29617476.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617477.html">SRX29617477</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H3K4me3</td>
+<td>75.8</td>
+<td>12.4</td>
+<td><a href="samples/SRX29617477.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617478.html">SRX29617478</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H2Aub</td>
+<td>52.4</td>
+<td>12.9</td>
+<td><a href="samples/SRX29617478.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617479.html">SRX29617479</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H2Aub</td>
+<td>67.9</td>
+<td>25.0</td>
+<td><a href="samples/SRX29617479.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617480.html">SRX29617480</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H2A</td>
+<td>81.7</td>
+<td>16.0</td>
+<td><a href="samples/SRX29617480.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617481.html">SRX29617481</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>H2A</td>
+<td>82.0</td>
+<td>12.2</td>
+<td><a href="samples/SRX29617481.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617482.html">SRX29617482</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>input</td>
+<td>79.0</td>
+<td>13.7</td>
+<td><a href="samples/SRX29617482.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX29617483.html">SRX29617483</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpez1,Mpknox2 double mutant</td>
+<td>input</td>
+<td>71.5</td>
+<td>46.5</td>
+<td><a href="samples/SRX29617483.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548549.html">SRX7548549</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>MpTCP1</td>
+<td>64.7</td>
+<td>15.8</td>
+<td><a href="samples/SRX7548549.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548550.html">SRX7548550</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>MpTCP1</td>
+<td>38.7</td>
+<td>13.1</td>
+<td><a href="samples/SRX7548550.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548551.html">SRX7548551</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>IgG</td>
+<td>26.6</td>
+<td>15.1</td>
+<td><a href="samples/SRX7548551.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548552.html">SRX7548552</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>IgG</td>
+<td>49.8</td>
+<td>23.1</td>
+<td><a href="samples/SRX7548552.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548553.html">SRX7548553</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>IgG</td>
+<td>29.5</td>
+<td>27.9</td>
+<td><a href="samples/SRX7548553.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX7548554.html">SRX7548554</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>MpTCP1</td>
+<td>61.8</td>
+<td>26.8</td>
+<td><a href="samples/SRX7548554.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604210.html">SRX8604210</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY1-tagRFP overexpression</td>
+<td>WRKY1</td>
+<td>21.6</td>
+<td>22.5</td>
+<td><a href="samples/SRX8604210.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604211.html">SRX8604211</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY6-tagRFP overexpression</td>
+<td>WRKY6</td>
+<td>31.4</td>
+<td>25.0</td>
+<td><a href="samples/SRX8604211.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604212.html">SRX8604212</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY12-tagRFP overexpression</td>
+<td>WRKY12</td>
+<td>36.6</td>
+<td>24.6</td>
+<td><a href="samples/SRX8604212.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604213.html">SRX8604213</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY14-tagRFP overexpression</td>
+<td>WRKY14</td>
+<td>26.6</td>
+<td>25.7</td>
+<td><a href="samples/SRX8604213.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604214.html">SRX8604214</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>Tak-1</td>
+<td>&mdash;</td>
+<td>30.6</td>
+<td>22.7</td>
+<td><a href="samples/SRX8604214.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604215.html">SRX8604215</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>tagRFP overexpression</td>
+<td>tagRFP</td>
+<td>29.1</td>
+<td>22.4</td>
+<td><a href="samples/SRX8604215.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604216.html">SRX8604216</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY1-tagRFP overexpression</td>
+<td>WRKY1</td>
+<td>23.6</td>
+<td>23.3</td>
+<td><a href="samples/SRX8604216.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604217.html">SRX8604217</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY6-tagRFP overexpression</td>
+<td>WRKY6</td>
+<td>31.9</td>
+<td>27.4</td>
+<td><a href="samples/SRX8604217.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604218.html">SRX8604218</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY12-tagRFP overexpression</td>
+<td>WRKY12</td>
+<td>40.8</td>
+<td>25.4</td>
+<td><a href="samples/SRX8604218.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX8604219.html">SRX8604219</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>&mdash;</td>
+<td>gemmaling</td>
+<td>MpWRKY14-tagRFP overexpression</td>
+<td>tagRFP</td>
+<td>25.5</td>
+<td>23.9</td>
+<td><a href="samples/SRX8604219.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800282.html">SRX9800282</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>WT</td>
+<td>H3</td>
+<td>63.9</td>
+<td>22.8</td>
+<td><a href="samples/SRX9800282.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800283.html">SRX9800283</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>WT</td>
+<td>H3K27me3</td>
+<td>72.1</td>
+<td>22.6</td>
+<td><a href="samples/SRX9800283.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800284.html">SRX9800284</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK115R/K116R</td>
+<td>H2Aub</td>
+<td>75.0</td>
+<td>23.9</td>
+<td><a href="samples/SRX9800284.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800285.html">SRX9800285</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK115R/K116R</td>
+<td>H3</td>
+<td>66.2</td>
+<td>20.9</td>
+<td><a href="samples/SRX9800285.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800286.html">SRX9800286</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK119R</td>
+<td>H2AK119ub</td>
+<td>76.5</td>
+<td>20.0</td>
+<td><a href="samples/SRX9800286.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800287.html">SRX9800287</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK119R</td>
+<td>H2AK119R</td>
+<td>68.5</td>
+<td>25.0</td>
+<td><a href="samples/SRX9800287.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800288.html">SRX9800288</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpbmi1/1l</td>
+<td>H3</td>
+<td>78.3</td>
+<td>21.7</td>
+<td><a href="samples/SRX9800288.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800289.html">SRX9800289</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpbmi1/1l</td>
+<td>H3</td>
+<td>78.5</td>
+<td>18.1</td>
+<td><a href="samples/SRX9800289.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800290.html">SRX9800290</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>WT</td>
+<td>H2Aub</td>
+<td>27.2</td>
+<td>20.1</td>
+<td><a href="samples/SRX9800290.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800291.html">SRX9800291</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>WT</td>
+<td>H2Aub</td>
+<td>23.4</td>
+<td>22.9</td>
+<td><a href="samples/SRX9800291.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800292.html">SRX9800292</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK115R/K116R</td>
+<td>H2Aub</td>
+<td>21.9</td>
+<td>24.2</td>
+<td><a href="samples/SRX9800292.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800293.html">SRX9800293</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK115R/K116R</td>
+<td>H2Aub</td>
+<td>18.9</td>
+<td>23.8</td>
+<td><a href="samples/SRX9800293.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800294.html">SRX9800294</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK119R</td>
+<td>H2Aub</td>
+<td>15.3</td>
+<td>25.7</td>
+<td><a href="samples/SRX9800294.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800295.html">SRX9800295</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK119R</td>
+<td>H2AK119ub</td>
+<td>20.3</td>
+<td>24.4</td>
+<td><a href="samples/SRX9800295.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800296.html">SRX9800296</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpbmi1/1l</td>
+<td>H2Aub</td>
+<td>22.2</td>
+<td>21.1</td>
+<td><a href="samples/SRX9800296.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800297.html">SRX9800297</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpbmi1/1l</td>
+<td>H2Aub</td>
+<td>22.3</td>
+<td>22.9</td>
+<td><a href="samples/SRX9800297.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800298.html">SRX9800298</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>WT</td>
+<td>H3K27me3</td>
+<td>12.8</td>
+<td>59.6</td>
+<td><a href="samples/SRX9800298.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800299.html">SRX9800299</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>WT</td>
+<td>H3K27me3</td>
+<td>12.3</td>
+<td>49.8</td>
+<td><a href="samples/SRX9800299.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800300.html">SRX9800300</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK115R/K116R</td>
+<td>H2AK119ub</td>
+<td>9.9</td>
+<td>66.9</td>
+<td><a href="samples/SRX9800300.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800301.html">SRX9800301</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK115R/K116R</td>
+<td>H3K27me3</td>
+<td>16.1</td>
+<td>37.2</td>
+<td><a href="samples/SRX9800301.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800302.html">SRX9800302</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK119R</td>
+<td>H2AK119R</td>
+<td>12.5</td>
+<td>58.5</td>
+<td><a href="samples/SRX9800302.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800303.html">SRX9800303</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mph2a;H2AK119R</td>
+<td>H2AK119R</td>
+<td>9.6</td>
+<td>50.8</td>
+<td><a href="samples/SRX9800303.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800304.html">SRX9800304</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpbmi1/1l</td>
+<td>H3K27me3</td>
+<td>14.4</td>
+<td>56.2</td>
+<td><a href="samples/SRX9800304.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="samples/SRX9800305.html">SRX9800305</a></td>
+<td>ChIP-Seq</td>
+<td class="ok">ok</td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpbmi1/1l</td>
+<td>H3K27me3</td>
+<td>22.6</td>
+<td>49.0</td>
+<td><a href="samples/SRX9800305.html">&rarr;</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+<script>
+const q = document.getElementById('q');
+const rows = Array.from(document.querySelectorAll('#samples-table tbody tr'));
+const countEl = document.getElementById('filter-count');
+
+function updateCount() {
+  const visible = rows.filter(r => r.style.display !== 'none').length;
+  if (countEl) countEl.textContent = visible + ' of ' + rows.length;
+}
+
+q.addEventListener('input', () => {
+  const t = q.value.toLowerCase();
+  for (const row of rows) {
+    row.style.display = row.textContent.toLowerCase().includes(t) ? '' : 'none';
+  }
+  updateCount();
+});
+
+// Quick-filter chip click handler
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const val = chip.dataset.filter || '';
+    q.value = val;
+    q.dispatchEvent(new Event('input'));
+  });
+});
+
+// Sortable column headers
+document.querySelectorAll('#samples-table th[data-col]').forEach(th => {
+  th.style.cursor = 'pointer';
+  th.title = 'Click to sort';
+  let asc = true;
+  th.addEventListener('click', () => {
+    const col = parseInt(th.dataset.col);
+    const tbody = document.querySelector('#samples-table tbody');
+    const sortedRows = Array.from(tbody.querySelectorAll('tr')).sort((a, b) => {
+      const av = a.cells[col] ? a.cells[col].textContent.trim() : '';
+      const bv = b.cells[col] ? b.cells[col].textContent.trim() : '';
+      const an = parseFloat(av), bn = parseFloat(bv);
+      if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
+      return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+    sortedRows.forEach(r => tbody.appendChild(r));
+    asc = !asc;
+    document.querySelectorAll('#samples-table th[data-col]').forEach(h => {
+      h.textContent = h.textContent.replace(' ▲', '').replace(' ▼', '');
+    });
+    th.textContent += asc ? ' ▼' : ' ▲';
+  });
+});
+
+updateCount();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Bisulfite-Seq — zenigoke catalog</title>
+<link rel='stylesheet' href='../assets/style.css'>
+</head>
+<body>
+<nav>
+<a href="../index.html">Matrix</a>
+<a href="../browse.html">Browse</a>
+<a href="chipseq.html">ChIP-Seq</a>
+<a href="atacseq.html">ATAC-Seq</a>
+<a href="bsseq.html">BS-Seq</a>
+<a href="../summary.html">Summary</a>
+<a href="../methods.html">Methods</a>
+<a href="../enrichment.html">Enrichment</a>
+<a href="../about.html">About</a>
+</nav>
+<div class="container">
+<h1>Bisulfite-Seq</h1>
+<div class="card summary-card">
+<p><strong>31</strong> samples &mdash; <span class='ok'>31 ok</span>, <span class='failed'>0 failed</span></p>
+</div>
+<table id="samples-table">
+<thead>
+<tr>
+<th data-col="0">accession</th>
+<th data-col="1">status</th>
+<th data-col="2">tissue</th>
+<th data-col="3">dev_stage</th>
+<th data-col="4">strain</th>
+<th data-col="5">mapping_rate</th>
+<th data-col="6">mean_CpG</th>
+<th data-col="7">mean_CHG</th>
+<th data-col="8">mean_CHH</th>
+<th data-col="9">elapsed_min</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr class="ok">
+<td><a href="../samples/DRX162963.html">DRX162963</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>gametophyte</td>
+<td>Tak-1_BC</td>
+<td>13.3%</td>
+<td>14.1%</td>
+<td>6.3%</td>
+<td>1.6%</td>
+<td>18.0 min</td>
+<td><a href="../samples/DRX162963.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/DRX162964.html">DRX162964</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1_BC</td>
+<td>9.2%</td>
+<td>13.9%</td>
+<td>6.5%</td>
+<td>1.7%</td>
+<td>9.0 min</td>
+<td><a href="../samples/DRX162964.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/DRX162965.html">DRX162965</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Mpmet-3 mutant</td>
+<td>68.1%</td>
+<td>0.8%</td>
+<td>6.5%</td>
+<td>2.7%</td>
+<td>7.0 min</td>
+<td><a href="../samples/DRX162965.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/DRX162966.html">DRX162966</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Mpmet-3 mutant</td>
+<td>69.9%</td>
+<td>0.8%</td>
+<td>8.8%</td>
+<td>2.9%</td>
+<td>21.0 min</td>
+<td><a href="../samples/DRX162966.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX1060228.html">SRX1060228</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>78.6%</td>
+<td>32.0%</td>
+<td>16.5%</td>
+<td>2.4%</td>
+<td>30.0 min</td>
+<td><a href="../samples/SRX1060228.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX20670880.html">SRX20670880</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>71.0%</td>
+<td>24.7%</td>
+<td>10.5%</td>
+<td>1.9%</td>
+<td>9.0 min</td>
+<td><a href="../samples/SRX20670880.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX20670881.html">SRX20670881</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Mpmet</td>
+<td>72.1%</td>
+<td>1.2%</td>
+<td>8.0%</td>
+<td>2.7%</td>
+<td>11.0 min</td>
+<td><a href="../samples/SRX20670881.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613724.html">SRX2613724</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>58.6%</td>
+<td>37.8%</td>
+<td>27.1%</td>
+<td>17.0%</td>
+<td>13.0 min</td>
+<td><a href="../samples/SRX2613724.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613725.html">SRX2613725</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>71.6%</td>
+<td>40.1%</td>
+<td>29.0%</td>
+<td>18.4%</td>
+<td>14.0 min</td>
+<td><a href="../samples/SRX2613725.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613726.html">SRX2613726</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>70.7%</td>
+<td>41.9%</td>
+<td>33.2%</td>
+<td>23.4%</td>
+<td>14.0 min</td>
+<td><a href="../samples/SRX2613726.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613727.html">SRX2613727</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>73.8%</td>
+<td>41.0%</td>
+<td>27.9%</td>
+<td>14.0%</td>
+<td>19.0 min</td>
+<td><a href="../samples/SRX2613727.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613728.html">SRX2613728</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>73.2%</td>
+<td>41.3%</td>
+<td>29.3%</td>
+<td>14.9%</td>
+<td>13.0 min</td>
+<td><a href="../samples/SRX2613728.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613729.html">SRX2613729</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>sporophyte</td>
+<td>wild type</td>
+<td>62.3%</td>
+<td>48.6%</td>
+<td>35.9%</td>
+<td>18.4%</td>
+<td>16.0 min</td>
+<td><a href="../samples/SRX2613729.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613730.html">SRX2613730</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>archegoniophore</td>
+<td>Tak-2</td>
+<td>62.8%</td>
+<td>45.8%</td>
+<td>32.3%</td>
+<td>8.5%</td>
+<td>15.0 min</td>
+<td><a href="../samples/SRX2613730.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613731.html">SRX2613731</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>archegoniophore</td>
+<td>Tak-2</td>
+<td>13.0%</td>
+<td>98.3%</td>
+<td>97.7%</td>
+<td>98.1%</td>
+<td>10.0 min</td>
+<td><a href="../samples/SRX2613731.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613732.html">SRX2613732</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>archegoniophore</td>
+<td>Tak-2</td>
+<td>56.6%</td>
+<td>52.3%</td>
+<td>39.6%</td>
+<td>16.4%</td>
+<td>13.0 min</td>
+<td><a href="../samples/SRX2613732.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613733.html">SRX2613733</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1</td>
+<td>88.2%</td>
+<td>70.1%</td>
+<td>57.4%</td>
+<td>32.7%</td>
+<td>17.0 min</td>
+<td><a href="../samples/SRX2613733.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613734.html">SRX2613734</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1</td>
+<td>92.1%</td>
+<td>68.7%</td>
+<td>55.2%</td>
+<td>30.5%</td>
+<td>24.0 min</td>
+<td><a href="../samples/SRX2613734.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613735.html">SRX2613735</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak-1</td>
+<td>87.1%</td>
+<td>66.3%</td>
+<td>50.9%</td>
+<td>27.8%</td>
+<td>20.0 min</td>
+<td><a href="../samples/SRX2613735.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613736.html">SRX2613736</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>52.6%</td>
+<td>30.9%</td>
+<td>14.4%</td>
+<td>2.3%</td>
+<td>13.0 min</td>
+<td><a href="../samples/SRX2613736.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613737.html">SRX2613737</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>57.2%</td>
+<td>30.5%</td>
+<td>14.8%</td>
+<td>2.6%</td>
+<td>9.0 min</td>
+<td><a href="../samples/SRX2613737.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613738.html">SRX2613738</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>49.6%</td>
+<td>32.6%</td>
+<td>15.1%</td>
+<td>1.9%</td>
+<td>10.0 min</td>
+<td><a href="../samples/SRX2613738.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613739.html">SRX2613739</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>51.2%</td>
+<td>32.6%</td>
+<td>16.9%</td>
+<td>3.6%</td>
+<td>11.0 min</td>
+<td><a href="../samples/SRX2613739.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613740.html">SRX2613740</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>50.4%</td>
+<td>30.0%</td>
+<td>13.9%</td>
+<td>1.6%</td>
+<td>8.0 min</td>
+<td><a href="../samples/SRX2613740.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613741.html">SRX2613741</a></td>
+<td><span class="ok">ok</span></td>
+<td>&mdash;</td>
+<td>&mdash;</td>
+<td>Tak1/Tak2</td>
+<td>50.5%</td>
+<td>29.9%</td>
+<td>14.6%</td>
+<td>3.3%</td>
+<td>13.0 min</td>
+<td><a href="../samples/SRX2613741.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613742.html">SRX2613742</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>55.9%</td>
+<td>33.5%</td>
+<td>18.0%</td>
+<td>5.3%</td>
+<td>9.0 min</td>
+<td><a href="../samples/SRX2613742.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613743.html">SRX2613743</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>50.9%</td>
+<td>32.8%</td>
+<td>18.0%</td>
+<td>5.0%</td>
+<td>10.0 min</td>
+<td><a href="../samples/SRX2613743.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613744.html">SRX2613744</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>42.3%</td>
+<td>26.0%</td>
+<td>14.0%</td>
+<td>3.3%</td>
+<td>9.0 min</td>
+<td><a href="../samples/SRX2613744.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613745.html">SRX2613745</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>10.4%</td>
+<td>99.4%</td>
+<td>99.3%</td>
+<td>99.3%</td>
+<td>4.0 min</td>
+<td><a href="../samples/SRX2613745.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613746.html">SRX2613746</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>wild type</td>
+<td>46.0%</td>
+<td>32.4%</td>
+<td>18.0%</td>
+<td>3.9%</td>
+<td>9.0 min</td>
+<td><a href="../samples/SRX2613746.html">&rarr;</a></td>
+</tr>
+<tr class="ok">
+<td><a href="../samples/SRX2613747.html">SRX2613747</a></td>
+<td><span class="ok">ok</span></td>
+<td>thallus</td>
+<td>thallus</td>
+<td>Tak-1</td>
+<td>50.4%</td>
+<td>32.0%</td>
+<td>19.4%</td>
+<td>5.8%</td>
+<td>10.0 min</td>
+<td><a href="../samples/SRX2613747.html">&rarr;</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+<script>
+// Sortable column headers (no filter input on strategy pages)
+document.querySelectorAll('#samples-table th[data-col]').forEach(th => {
+  th.style.cursor = 'pointer';
+  th.title = 'Click to sort';
+  let asc = true;
+  th.addEventListener('click', () => {
+    const col = parseInt(th.dataset.col);
+    const tbody = document.querySelector('#samples-table tbody');
+    const sortedRows = Array.from(tbody.querySelectorAll('tr')).sort((a, b) => {
+      const av = a.cells[col] ? a.cells[col].textContent.trim() : '';
+      const bv = b.cells[col] ? b.cells[col].textContent.trim() : '';
+      const an = parseFloat(av), bn = parseFloat(bv);
+      if (!isNaN(an) && !isNaN(bn)) return asc ? an - bn : bn - an;
+      return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
+    sortedRows.forEach(r => tbody.appendChild(r));
+    asc = !asc;
+    document.querySelectorAll('#samples-table th[data-col]').forEach(h => {
+      h.textContent = h.textContent.replace(' ▲', '').replace(' ▼', '');
+    });
+    th.textContent += asc ? ' ▼' : ' ▲';
+  });
+});
+</script>
+
+</body>
+</html>

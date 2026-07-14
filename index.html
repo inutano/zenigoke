@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>zenigoke catalog</title>
+<link rel='stylesheet' href='assets/style.css'>
+</head>
+<body>
+<link rel="stylesheet" href="assets/matrix.css">
+<nav>
+<a href="index.html" class="active">Matrix</a>
+<a href="browse.html">Browse</a>
+<a href="strategy/chipseq.html">ChIP-Seq</a>
+<a href="strategy/atacseq.html">ATAC-Seq</a>
+<a href="strategy/bsseq.html">BS-Seq</a>
+<a href="summary.html">Summary</a>
+<a href="methods.html">Methods</a>
+<a href="enrichment.html">Enrichment</a>
+<a href="about.html">About</a>
+</nav>
+<div class="container">
+<div class="card info-card">
+<h2>Marchantia polymorpha multiomics catalog</h2>
+<p>Pick two attributes to cross-tabulate the 157 samples. Click a cell to send the bundle to IGV.</p>
+</div>
+<div class="card">
+<div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap">
+<label>X axis: <select id="x-axis-select"></select></label>
+<label>Y axis: <select id="y-axis-select"></select></label>
+<label><input type="checkbox" id="include-unknown"> include unknowns</label>
+</div>
+</div>
+<div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap">
+<div class="card" style="flex:2;min-width:min(400px,100%)">
+<div id="matrix-grid">Loading…</div>
+</div>
+<div class="card" style="flex:1;min-width:min(280px,100%);position:sticky;top:1rem">
+<h2>Selection</h2>
+<div id="selection-panel"><p class="subtitle">Click a populated cell to begin.</p></div>
+</div>
+</div>
+</div>
+<script>window.ZENIGOKE_DATA_BASE='https://zenigoke-catalog-dsc.s3.ap-northeast-1.amazonaws.com/';</script>
+<script>window.ZENIGOKE_API_BASE='https://zenigoke.inutano.com';</script>
+<script src='assets/matrix.js' defer></script>
+
+</body>
+</html>

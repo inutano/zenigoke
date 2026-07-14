@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Bundle — zenigoke</title>
+<link rel='stylesheet' href='assets/style.css'>
+</head>
+<body>
+<nav>
+<a href="index.html">Matrix</a>
+<a href="browse.html">Browse</a>
+<a href="strategy/chipseq.html">ChIP-Seq</a>
+<a href="strategy/atacseq.html">ATAC-Seq</a>
+<a href="strategy/bsseq.html">BS-Seq</a>
+<a href="summary.html">Summary</a>
+<a href="methods.html">Methods</a>
+<a href="enrichment.html">Enrichment</a>
+<a href="about.html">About</a>
+</nav>
+<div class='container'>
+  <h1 id='bundle-title'>Bundle</h1>
+  <p class='subtitle' id='bundle-subtitle'></p>
+  <div class='card'>
+    <h2>Tracks</h2>
+    <table id='tracks-table' class='kv'><thead>
+      <tr><th>name</th><th>type</th><th>color</th><th>file</th></tr>
+    </thead><tbody></tbody></table>
+  </div>
+  <div class='card'>
+    <h2>Actions</h2>
+    <button id='igv-btn'>&#9654; Send to IGV</button>
+  </div>
+</div>
+<script src='assets/matrix.js' defer></script>
+<script>
+// Wait until matrix.js is loaded (it exposes tracksForAccession + dataUrl).
+// Build the track list from URL params and render.
+function _initBundle() {
+  const params = new URLSearchParams(location.search);
+  const accs = (params.get('acc') || '').split(',').filter(Boolean);
+  const q = params.get('q') || '1e-10';
+  const groupSpec = params.get('g') || '';
+  if (accs.length === 0) {
+    document.getElementById('bundle-subtitle').textContent = 'No accessions in URL.';
+    return;
+  }
+
+  // Parse the optional group spec: "label1:a+b;label2:c+d"
+  const groups = [];
+  const palette = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
+  if (groupSpec) {
+    for (const part of groupSpec.split(';')) {
+      const [label, accStr] = part.split(':');
+      if (!accStr) continue;
+      groups.push({label: label || '?', accessions: accStr.split('+').filter(Boolean)});
+    }
+  } else {
+    groups.push({label: 'samples', accessions: accs});
+  }
+
+  // resolveStrategy / tracksForAccession / dataUrl live in matrix.js.
+  // If matrix.js hasn't finished loading yet, retry.
+  if (typeof tracksForAccession !== 'function') {
+    setTimeout(_initBundle, 50);
+    return;
+  }
+
+  const tracks = [];
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
+    const color = palette[i % palette.length];
+    const cellLike = {x: g.label.split(' × ')[0] || '', y: g.label.split(' × ')[1] || ''};
+    const strat = resolveStrategy(cellLike);
+    for (const acc of g.accessions) {
+      const ts = tracksForAccession(acc, {strategy: strat, q_cutoff: q}, color);
+      tracks.push(...ts);
+    }
+  }
+
+  document.getElementById('bundle-title').textContent = 'Bundle (' + accs.length + ' samples)';
+  document.getElementById('bundle-subtitle').textContent = tracks.length + ' tracks · q≤' + q;
+  const tbody = document.querySelector('#tracks-table tbody');
+  for (const t of tracks) {
+    const row = document.createElement('tr');
+    const fname = t.url.split('/').pop();
+    row.innerHTML = '<td>' + t.name + '</td>' +
+      '<td>' + t.type + '</td>' +
+      '<td><span style="color:' + t.color + '">&#9608;</span></td>' +
+      '<td><a href="' + t.url + '">' + fname + '</a></td>';
+    tbody.appendChild(row);
+  }
+  document.getElementById('igv-btn').onclick = () => {
+    const param = tracks.map(t => t.url + '|' + t.name).join(',');
+    fetch('http://localhost:60151/load?file=' + encodeURIComponent(param))
+      .catch(e => alert('Could not reach IGV at :60151. Make sure IGV is running with the port enabled.'));
+  };
+}
+_initBundle();
+</script>
+
+</body>
+</html>

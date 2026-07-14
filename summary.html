@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Summary — zenigoke catalog</title>
+<link rel='stylesheet' href='assets/style.css'>
+</head>
+<body>
+<nav>
+<a href="index.html">Matrix</a>
+<a href="browse.html">Browse</a>
+<a href="strategy/chipseq.html">ChIP-Seq</a>
+<a href="strategy/atacseq.html">ATAC-Seq</a>
+<a href="strategy/bsseq.html">BS-Seq</a>
+<a href="summary.html" class="active">Summary</a>
+<a href="methods.html">Methods</a>
+<a href="enrichment.html">Enrichment</a>
+<a href="about.html">About</a>
+</nav>
+<div class="container">
+<h1>Catalog Summary</h1>
+<div class="card summary-card">
+<p><strong>157</strong> SRA experiments processed &mdash; <span class='ok'>156 completed successfully</span>, <span class='failed'>1 failed</span>.</p>
+<p><span class='badge'>ATAC-Seq: 36</span><span class='badge'>Bisulfite-Seq: 31</span><span class='badge'>ChIP-Seq: 90</span></p>
+<p>Build date: 2026-07-14</p>
+</div>
+<div class="card">
+<h2>ChIP-Seq — 90 experiments (89 ok, 1 failed)</h2>
+<h3>Failed</h3>
+<table>
+<thead><tr>
+<th>accession</th><th>exit_code</th>
+</tr></thead>
+<tbody>
+<tr class="failed">
+<td><a href="samples/SRX29617452.html">SRX29617452</a></td>
+<td>&mdash;</td>
+</tr>
+</tbody>
+</table>
+<p>Successful: 89 samples. Avg mapping rate: 53.5%. Avg elapsed: 21.4 min.</p>
+</div>
+<div class="card">
+<h2>ATAC-Seq — 36 experiments (36 ok, 0 failed)</h2>
+<p>Successful: 36 samples. Avg mapping rate: 64.2%. Avg elapsed: 28.4 min.</p>
+</div>
+<div class="card">
+<h2>Bisulfite-Seq — 31 experiments (31 ok, 0 failed)</h2>
+<p>Successful: 31 samples. Avg mapping rate: 56.8%. Avg elapsed: 13.2 min.</p>
+</div>
+</div>
+
+</body>
+</html>

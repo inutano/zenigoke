@@ -1,0 +1,42 @@
+/* Matrix UI styles, layered on top of style.css */
+.info-card h2 { margin-top: 0; }
+#matrix-grid {
+  overflow-x: auto;
+  max-width: 100%;
+}
+#matrix-grid table { border-collapse: separate; border-spacing: 0; font-size: 12px; }
+#matrix-grid th, #matrix-grid td {
+  border-right: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  padding: 4px 8px; text-align: center;
+  white-space: nowrap;
+}
+#matrix-grid thead th { background: #f4f4f4; border-top: 1px solid #ddd; }
+#matrix-grid tbody th:first-child {
+  position: sticky;
+  left: 0;
+  background: #f4f4f4;
+  border-left: 1px solid #ddd;
+  z-index: 1;
+}
+#matrix-grid thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  border-left: 1px solid #ddd;
+}
+#matrix-grid td.cell { cursor: pointer; }
+#matrix-grid td.cell:hover { background: #f0f8ff; }
+#matrix-grid td.cell.selected { background: #d8eed8 !important; outline: 2px solid #1a9970; }
+#matrix-grid td.cell.empty { color: #ccc; cursor: default; background: #fafafa; }
+
+#selection-panel .group { margin-bottom: 0.7rem; }
+#selection-panel .group-header { font-weight: 600; }
+#selection-panel ul { margin: 0.2rem 0 0 1rem; padding: 0; font-family: ui-monospace, monospace; font-size: 11px; }
+#selection-panel button { background: #1a9970; color: #fff; border: 0; padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; }
+#selection-panel button:disabled { background: #aaa; cursor: not-allowed; }
+#selection-panel a.secondary { display: block; margin-top: 0.4rem; font-size: 0.85rem; }
+
+#results-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+#results-table th, #results-table td { border: 1px solid #ddd; padding: 4px 8px; }
+#results-table thead th { background: #f4f4f4; }
