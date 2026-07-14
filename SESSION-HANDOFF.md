@@ -180,9 +180,13 @@ git push origin main
    - SSH in and run `bash deploy/aws/04-ec2-bootstrap.sh`
    - Push an empty commit to trigger Pages rebuild
 
-2. **Mode A deployment not yet executed.** Same — code is ready, S3 bucket and
-   GitHub Pages haven't been set up. Run `01-bucket.sh` + `02-sync-data.sh` +
-   enable Pages.
+2. ~~**Mode A deployment not yet executed.**~~ ✅ **Done 2026-07-14.** Bucket
+   `zenigoke-catalog` created + 39.3 GB synced; repo pushed to
+   `github.com/inutano/zenigoke` (public); Pages live at
+   **https://inutano.github.io/zenigoke/**. Two deploy-time bugs fixed along the
+   way: S3 CORS double-wildcard origin, and per-sample file links now honor
+   `ZENIGOKE_DATA_BASE` (were 404ing on Pages). Enrichment page is inert until
+   Mode B is deployed.
 
 ### Known limitations carried forward (from review subagents)
 
@@ -223,7 +227,7 @@ git push origin main
 
 - **Local catalog:** http://100.88.253.33:8088/ (Tailscale, requires the
   FastAPI server running)
-- **Public catalog (after Mode A deploy):** `https://<your-github>.github.io/zenigoke/`
+- **Public catalog (Mode A, LIVE):** https://inutano.github.io/zenigoke/
 - **API (after Mode B deploy):** `https://zenigoke.inutano.com`
 - **GitHub repo:** TBD (user-controlled; the workflow assumes public)
 - **AWS region:** `ap-northeast-1` (Tokyo)
