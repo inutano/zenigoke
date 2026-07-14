@@ -33,6 +33,11 @@ STRATEGY_SLUGS: dict[str, str] = {
 
 SLUG_TO_STRATEGY: dict[str, str] = {v: k for k, v in STRATEGY_SLUGS.items()}
 
+# Cloud-mode (S3) data base. When set (e.g. the S3 HTTPS URL), per-sample file
+# links become absolute S3 URLs; when empty (local FastAPI mode), they stay
+# relative to the served report/output symlink.
+DATA_BASE = os.getenv("ZENIGOKE_DATA_BASE", "").rstrip("/")
+
 
 # ---------------------------------------------------------------------------
 # HTML helpers
@@ -257,9 +262,13 @@ def _file_link(path: Optional[str], acc: str, strat_dir: str, label: Optional[st
     p = pathlib.Path(path)
     filename = p.name
     link_text = label if label else filename
-    # Build relative URL: samples/x.html -> ../output/...
-    rel_url = f"../output/{strat_dir}/{acc}/{filename}"
-    return f'<a href="{rel_url}">{_esc(link_text)}</a>'
+    # Cloud mode (S3): absolute URL so the link works on GitHub Pages, where the
+    # output/ tree is not published. Local mode: relative to report/output.
+    if DATA_BASE:
+        url = f"{DATA_BASE}/output/{strat_dir}/{acc}/{filename}"
+    else:
+        url = f"../output/{strat_dir}/{acc}/{filename}"
+    return f'<a href="{url}">{_esc(link_text)}</a>'
 
 
 # ---------------------------------------------------------------------------
