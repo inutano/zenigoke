@@ -171,22 +171,32 @@ git push origin main
 
 ## Where you left off
 
-### Open / next-action items (not done yet)
+### Deployment status — BOTH MODES LIVE (2026-07-15)
 
-1. **Mode B deployment not yet executed.** Code + scripts are ready; the EC2
-   hasn't been launched. To bring `/api/enrichment` live for your friend:
-   - `bash deploy/aws/03-launch-ec2.sh` from your laptop
-   - Set DNS `zenigoke.inutano.com → <EIP>`
-   - SSH in and run `bash deploy/aws/04-ec2-bootstrap.sh`
-   - Push an empty commit to trigger Pages rebuild
+**AWS account:** everything runs in profile **`chiba-dsc`** (account `090413359466`,
+`tazro.ohta@chiba-u.jp`). An earlier deploy to the wrong account (`togoid`,
+928810569478) was fully torn down. DNS lives in profile **`inutano`** (account
+788543821682, Route 53 zone `inutano.com`).
 
-2. ~~**Mode A deployment not yet executed.**~~ ✅ **Done 2026-07-14.** Bucket
-   `zenigoke-catalog` created + 39.3 GB synced; repo pushed to
-   `github.com/inutano/zenigoke` (public); Pages live at
-   **https://inutano.github.io/zenigoke/**. Two deploy-time bugs fixed along the
-   way: S3 CORS double-wildcard origin, and per-sample file links now honor
-   `ZENIGOKE_DATA_BASE` (were 404ing on Pages). Enrichment page is inert until
-   Mode B is deployed.
+1. ~~**Mode A not yet executed.**~~ ✅ **Done.** Bucket `zenigoke-catalog-dsc`
+   (the original `zenigoke-catalog` name could not be reused promptly after the
+   wrong-account teardown — S3 holds a deleted name for a while) + 39.3 GB synced;
+   repo at `github.com/inutano/zenigoke` (public); Pages live at
+   **https://inutano.github.io/zenigoke/**. Two deploy-time bugs fixed: S3 CORS
+   double-wildcard origin, and per-sample file links now honor `ZENIGOKE_DATA_BASE`
+   (were 404ing on Pages).
+
+2. ~~**Mode B not yet executed.**~~ ✅ **Done.** `t3.small` (`i-06b55f62b1bb84191`,
+   EIP `35.73.72.14`) in the chiba-dsc default VPC; Caddy has a real Let's Encrypt
+   cert for **https://zenigoke.inutano.com**; `POST /api/enrichment` verified
+   end-to-end (Fisher/binomial + BH q-values) and CORS allows `inutano.github.io`.
+   EC2 reads S3 via IAM instance profile `zenigoke-ec2-s3read` (role scoped to the
+   bucket). ~$15/mo on top of Mode A.
+   - **Gotcha for next time:** `03-launch-ec2.sh` gets the launcher's public IP from
+     `curl checkip.amazonaws.com`, which is blocked on some networks; add SG ingress
+     for port 22 manually if it dies there. `04-ec2-bootstrap.sh`'s `aws s3 sync`
+     needs `s3:ListBucket` — provided here by the instance profile, not the public
+     bucket policy (which only grants GetObject).
 
 ### Known limitations carried forward (from review subagents)
 
@@ -228,11 +238,13 @@ git push origin main
 - **Local catalog:** http://100.88.253.33:8088/ (Tailscale, requires the
   FastAPI server running)
 - **Public catalog (Mode A, LIVE):** https://inutano.github.io/zenigoke/
-- **API (after Mode B deploy):** `https://zenigoke.inutano.com`
-- **GitHub repo:** TBD (user-controlled; the workflow assumes public)
+- **API (Mode B, LIVE):** https://zenigoke.inutano.com (EC2 `i-06b55f62b1bb84191`, EIP `35.73.72.14`)
+- **GitHub repo:** https://github.com/inutano/zenigoke (public)
+- **AWS profile / account:** `chiba-dsc` / `090413359466` (compute + S3); DNS in profile `inutano` / `788543821682`
 - **AWS region:** `ap-northeast-1` (Tokyo)
-- **S3 bucket:** `zenigoke-catalog` (public-read, CORS allows `*.github.io` + Tailscale)
+- **S3 bucket:** `zenigoke-catalog-dsc` (public-read GetObject; CORS allows `*.github.io`, localhost:8088, `*.ts.net`)
 - **EC2 key pair:** `zenigoke` (written by `03-launch-ec2.sh` to `~/.ssh/zenigoke.pem`)
+- **EC2 IAM:** instance profile `zenigoke-ec2-s3read` (bucket-scoped Get+List)
 
 ---
 
