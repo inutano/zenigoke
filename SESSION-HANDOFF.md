@@ -9,6 +9,10 @@ A multiomics catalog for *Marchantia polymorpha*. 157 SRA experiments
 served as an interactive web catalog with optional EC2-hosted enrichment
 analysis.
 
+> **Deployment architecture + as-built runbook (both modes live):**
+> [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — the accounts, resource IDs, exact
+> steps, and gotchas. Read it before touching the AWS/Pages/EC2 deployment.
+
 ---
 
 ## Phase summary

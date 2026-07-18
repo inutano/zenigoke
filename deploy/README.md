@@ -1,5 +1,9 @@
 # Deployment
 
+> **As-built record for the currently-running deployment (accounts, resource IDs,
+> exact steps, gotchas):** [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md). This
+> file and [`aws/README.md`](aws/README.md) are the generic per-script docs.
+
 Two modes share the same code; pick one.
 
 ## A) Static-only (S3 + GitHub Pages) — recommended for sharing
