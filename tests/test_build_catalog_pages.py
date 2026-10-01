@@ -356,11 +356,13 @@ def test_layout_translated_to_se_pe():
 # Test 7: Units rendering (Item 11)
 # ---------------------------------------------------------------------------
 
-def test_mapping_rate_rendered_with_percent():
-    """mapping_rate must be rendered as 'XX.X%' not raw float."""
+def test_alignment_rate_rendered_with_percent():
+    """The alignment rate (legacy mapping_rate fallback) must be rendered as 'XX.X%'."""
     h = bcp.render_sample(CHIP_SAMPLE)
-    # Should contain the percentage string
+    # Should contain the percentage string, labelled as alignment rate
+    assert "alignment rate" in h
     assert "85.3%" in h
+    assert "mapping_rate" not in h
 
 
 def test_elapsed_min_rendered_with_min_suffix():
@@ -428,3 +430,117 @@ def test_sample_page_has_ena_sra_link():
     h = bcp.render_sample(CHIP_SAMPLE)
     assert "ebi.ac.uk/ena/browser/view/SRX_CHIP_001" in h
     assert "SRA" in h
+
+
+# ---------------------------------------------------------------------------
+# Task 9: QC display, labels, Methods text
+# ---------------------------------------------------------------------------
+
+def _qc_sample(**kw):
+    s = dict(CHIP_SAMPLE)          # existing ChIP fixture dict at the top of this file
+    s.update(accession="SRX9800303", library_strategy="ChIP-Seq", status="ok",
+             mapping_rate=None, usable_rate=9.6, aligned_pct=12.9, dup_pct=26.6,
+             qc_flag="FAIL", qc_reasons="alignment rate 13% < 30%; non-Marchantia DNA bacterial-like 86%",
+             peak_flag="OK", metrics_source="subsample-2026-10-01")
+    s.update(kw)
+    return s
+
+
+def test_sample_page_shows_qc_flag_and_reasons():
+    html_out = bcp.render_sample(_qc_sample())
+    assert "qc-FAIL" in html_out
+    assert "bacterial-like 86%" in html_out
+    assert "12.9%" in html_out
+    assert "estimated from a 100k-read subsample" in html_out
+    assert "duplication_rate" not in html_out
+
+
+def test_browse_has_qc_and_aligned_columns():
+    out = bcp.render_browse([_qc_sample()])
+    assert ">QC<" in out and ">aligned %<" in out
+    assert "mapping_rate" not in out
+
+
+def test_methods_q_value_wording_and_limitations():
+    out = bcp.render_methods()
+    assert "q &lt; 1e-5, 1e-10, 1e-20" in out
+    assert "0.05, 0.10, 0.20" not in out
+    assert "corrupted FASTQ" not in out
+
+
+def test_qc_helpers():
+    assert bcp._qc_pill(None) == "&mdash;"
+    pill = bcp._qc_pill("WARN", "a < b")
+    assert pill == '<span class="qc qc-WARN" title="a &lt; b">WARN</span>'
+    assert bcp._qc_pill("PASS") == '<span class="qc qc-PASS">PASS</span>'
+    assert bcp._aligned({"aligned_pct": 12.9, "mapping_rate": 50.0}) == 12.9
+    assert bcp._aligned({"aligned_pct": None, "mapping_rate": 50.0}) == 50.0
+    assert bcp._aligned({"aligned_pct": 0.0, "mapping_rate": 50.0}) == 0.0
+    assert bcp._aligned({}) is None
+
+
+def test_sample_page_chip_drops_legacy_pipeline_stat_rows():
+    """ChIP/ATAC pipeline-stats card no longer carries mapping/duplication rows."""
+    out = bcp.render_sample(_qc_sample())
+    assert "mapping_rate" not in out
+    assert "reads_mapped" not in out
+    assert "Quality Control" in out
+    assert "usable reads (dedup, aligned) / trimmed" in out
+    assert "9.6%" in out
+
+
+def test_sample_page_no_subsample_note_for_pipeline_metrics():
+    out = bcp.render_sample(_qc_sample(metrics_source="pipeline", qc_flag="PASS", qc_reasons=None))
+    assert "qc-PASS" in out
+    assert "100k-read subsample" not in out
+
+
+def test_sample_page_bsseq_qc_card_and_subsample_note():
+    s = dict(BSSEQ_SAMPLE)
+    s.update(qc_flag="WARN", qc_reasons="chloroplast non-conversion 3.4% > 2%",
+             aligned_pct=None, nonconv_pct=3.4, foreign_pct=1.2,
+             metrics_source="pipeline+subsample")
+    out = bcp.render_sample(s)
+    assert "qc-WARN" in out
+    assert "non-conversion (chloroplast CHH)" in out and "3.4%" in out
+    assert "non-Marchantia reads" in out
+    assert "Non-conversion and non-Marchantia values are estimated from a subsample" in out
+    assert "100k-read subsample" not in out
+    assert "alignment rate" not in out
+    assert "mapped pairs/reads (abismal, incl. multi-mapped)" in out
+    assert "duplication_rate" not in out
+
+
+def test_strategy_pages_have_qc_and_aligned_columns():
+    chip = bcp.render_strategy("chipseq", [_qc_sample()])
+    assert ">QC<" in chip and ">aligned %<" in chip
+    assert "mapping_rate" not in chip
+    assert 'class="qc qc-FAIL"' in chip
+    atac = bcp.render_strategy("atacseq", [ATAC_SAMPLE])
+    assert ">QC<" in atac and ">aligned %<" in atac
+    bs = bcp.render_strategy("bsseq", [BSSEQ_SAMPLE])
+    assert ">QC<" in bs and ">mapped %<" in bs
+    assert "mapping_rate" not in bs and ">aligned %<" not in bs
+
+
+def test_browse_sort_columns_stay_consistent_after_qc_insert():
+    out = bcp.render_browse([_qc_sample()])
+    head = out.split("<thead>")[1].split("</thead>")[0]
+    ths = [h for h in head.split("<th")[1:]]
+    n_th = len(ths)
+    row = out.split("<tbody>")[1].split("</tbody>")[0]
+    n_td = row.count("<td")
+    assert n_th == n_td
+    # data-col indices are 0..n-1 positions of the header cells
+    for i, h in enumerate(ths):
+        if "data-col" in h:
+            assert f'data-col="{i}"' in h
+
+
+def test_summary_uses_alignment_rate():
+    samples = [_qc_sample(), dict(CHIP_SAMPLE)]
+    out = bcp.render_summary(samples)
+    assert "Avg alignment rate" in out
+    assert "Avg mapping rate" not in out
+    # mean of aligned_pct 12.9 and legacy mapping_rate fallback 85.3 = 49.1
+    assert "49.1%" in out

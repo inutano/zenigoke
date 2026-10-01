@@ -87,6 +87,20 @@ def _fmt_frac_pct(x: Any, decimals: int = 1) -> str:
         return _dash(x)
 
 
+def _qc_pill(flag: Optional[str], reasons: Optional[str] = None) -> str:
+    """Coloured PASS/WARN/FAIL/NA pill; the reasons (if any) become the tooltip."""
+    if not flag:
+        return "&mdash;"
+    title = f' title="{_esc(reasons)}"' if reasons else ""
+    return f'<span class="qc qc-{_esc(flag)}"{title}>{_esc(flag)}</span>'
+
+
+def _aligned(s: dict) -> Optional[float]:
+    """True alignment rate: sample_qc.aligned_pct, else the legacy sample.mapping_rate."""
+    a = s.get("aligned_pct")
+    return a if a is not None else s.get("mapping_rate")
+
+
 def _fmt_min(x: Any, decimals: int = 1) -> str:
     """Format elapsed minutes with ' min' suffix, or em-dash."""
     if x is None or x == "":
@@ -429,7 +443,8 @@ def _sample_row_html(s: dict, link_prefix: str = "samples/") -> str:
     dev_stage = s.get("developmental_stage") or ""
     strain = s.get("genotype_strain") or ""
     antibody = s.get("antibody_target") or ""
-    mapping = _fmt(s.get("mapping_rate"), 1)
+    qc = _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))
+    aligned = _fmt(_aligned(s), 1)
     elapsed = _fmt(s.get("elapsed_min"), 1)
 
     status_class = "ok" if status == "ok" else "failed"
@@ -440,11 +455,12 @@ def _sample_row_html(s: dict, link_prefix: str = "samples/") -> str:
         f'<td><a href="{link_prefix}{_esc(acc)}.html">{_esc(acc)}</a></td>\n'
         f"<td>{_esc(strat)}</td>\n"
         f'<td class="{status_class}">{_esc(status)}</td>\n'
+        f"<td>{qc}</td>\n"
         f"<td>{_dash(tissue)}</td>\n"
         f"<td>{_dash(dev_stage)}</td>\n"
         f"<td>{_dash(strain)}</td>\n"
         f"<td>{_dash(antibody)}</td>\n"
-        f"<td>{_esc(mapping)}</td>\n"
+        f"<td>{_esc(aligned)}</td>\n"
         f"<td>{_esc(elapsed)}</td>\n"
         f"<td>{sample_link}</td>\n"
         f"</tr>\n"
@@ -520,8 +536,8 @@ def render_browse(samples: list[dict]) -> str:
     # Samples table with sortable headers
     parts.append('<table id="samples-table">\n')
     parts.append("<thead>\n<tr>\n")
-    cols = ["accession", "strategy", "status", "tissue", "dev_stage",
-            "strain", "antibody", "mapping_rate", "elapsed_min", ""]
+    cols = ["accession", "strategy", "status", "QC", "tissue", "dev_stage",
+            "strain", "antibody", "aligned %", "elapsed_min", ""]
     for i, col in enumerate(cols):
         if col:
             parts.append(f'<th data-col="{i}">{_esc(col)}</th>\n')
@@ -582,6 +598,37 @@ def render_sample(sample: dict) -> str:
     title_body_parts.append("</div>\n")
     parts.append("".join(title_body_parts))
 
+    # Quality Control card (flag + reasons + estimated metrics)
+    qc_rows: list[tuple[str, str]] = [("QC flag", _qc_pill(sample.get("qc_flag")))]
+    if sample.get("qc_reasons"):
+        qc_rows.append(("reasons", "<br>".join(_esc(r) for r in sample["qc_reasons"].split("; "))))
+    if strat != "Bisulfite-Seq":
+        dup = sample.get("dup_pct") if sample.get("dup_pct") is not None else sample.get("duplication_rate")
+        qc_rows += [
+            ("alignment rate", _fmt_pct(_aligned(sample))),
+            ("duplication rate", _fmt_pct(dup)),
+            ("usable reads (dedup, aligned) / trimmed", _fmt_pct(sample.get("usable_rate"))),
+            ("organelle reads", _fmt_pct(sample.get("organelle_pct"))),
+            ("non-Marchantia DNA", _fmt_pct(sample.get("foreign_pct"))),
+            ("peaks in organelle-like regions", _fmt_pct(sample.get("peaks_in_organelle_like_pct"))),
+        ]
+    else:
+        qc_rows += [
+            ("non-conversion (chloroplast CHH)", _fmt_pct(sample.get("nonconv_pct"))),
+            ("non-Marchantia reads", _fmt_pct(sample.get("foreign_pct"))),
+        ]
+    qc_note = ""
+    metrics_source = sample.get("metrics_source") or ""
+    if metrics_source.startswith("subsample"):
+        qc_note = ('<p class="note">Alignment, duplication, organelle and contamination values are '
+                   "estimated from a 100k-read subsample (2026-10-01 QC investigation).</p>\n")
+    elif "subsample" in metrics_source:  # e.g. 'pipeline+subsample'
+        what = ("Non-conversion and non-Marchantia" if strat == "Bisulfite-Seq"
+                else "Organelle and non-Marchantia")
+        qc_note = (f'<p class="note">{what} values are estimated from a '
+                   "subsample (2026-10-01 QC investigation).</p>\n")
+    parts.append(_card("Quality Control", _kv_table(qc_rows) + qc_note))
+
     # Curated metadata card (Item 8: em-dash for empty cells)
     curation_rows = [
         ("tissue", _dash(sample.get("tissue"))),
@@ -606,18 +653,17 @@ def render_sample(sample: dict) -> str:
         )
         parts.append(f'<div class="card failed-card">\n<h2>Did Not Complete</h2>\n{fail_body}\n</div>\n')
     else:
-        # Pipeline stats card (Item 2: layout SE/PE; Item 9: hide duplication_rate for BS-seq;
-        #                      Item 11: units; Item 15: fastq_size + reads_mapped)
+        # Pipeline stats card (Item 2: layout SE/PE; Item 11: units; Item 15: fastq_size)
         pipeline_rows: list[tuple[str, str]] = [
             ("layout", _layout_label(sample.get("layout"))),
             ("fastq_size", _fmt_size(sample.get("fastq_size"))),
             ("reads_filtered", _dash(sample.get("reads_filtered"))),
         ]
-        if strat != "Bisulfite-Seq":
-            pipeline_rows.append(("reads_mapped", _dash(sample.get("reads_mapped"))))
-        pipeline_rows.append(("mapping_rate", _fmt_pct(sample.get("mapping_rate"))))
-        if strat != "Bisulfite-Seq":  # Item 9
-            pipeline_rows.append(("duplication_rate", _fmt_pct(sample.get("duplication_rate"))))
+        # ChIP/ATAC alignment/duplication figures live in the QC card; only the
+        # BS-seq abismal mapped figure stays here (relabelled: it includes multi-mapped).
+        if strat == "Bisulfite-Seq":
+            pipeline_rows.append(("mapped pairs/reads (abismal, incl. multi-mapped)",
+                                  _fmt_pct(sample.get("mapping_rate"))))
         pipeline_rows.append(("elapsed_min", _fmt_min(sample.get("elapsed_min"))))
         parts.append(_card("Pipeline Stats", _kv_table(pipeline_rows)))
 
@@ -688,10 +734,11 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
     base_cols: list[tuple[str, Any]] = [
         ("accession", _acc_link),
         ("status", _status_cell),
+        ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
         ("tissue", lambda s: _dash(s.get("tissue"))),
         ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
         ("strain", lambda s: _dash(s.get("genotype_strain"))),
-        ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+        ("aligned %", lambda s: _fmt_pct(_aligned(s))),
         ("elapsed_min", lambda s: _fmt_min(s.get("elapsed_min"))),
         ("", _arrow_link),
     ]
@@ -701,11 +748,12 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
         return [
             ("accession", _acc_link),
             ("status", _status_cell),
+            ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
             ("tissue", lambda s: _dash(s.get("tissue"))),
             ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
             ("strain", lambda s: _dash(s.get("genotype_strain"))),
             ("antibody", lambda s: _dash(s.get("antibody_target"))),
-            ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+            ("aligned %", lambda s: _fmt_pct(_aligned(s))),
             ("peaks_q5", lambda s: _dash(s.get("peaks_q5"))),
             ("elapsed_min", lambda s: _fmt_min(s.get("elapsed_min"))),
             ("", _arrow_link),
@@ -715,10 +763,11 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
         return [
             ("accession", _acc_link),
             ("status", _status_cell),
+            ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
             ("tissue", lambda s: _dash(s.get("tissue"))),
             ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
             ("strain", lambda s: _dash(s.get("genotype_strain"))),
-            ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+            ("aligned %", lambda s: _fmt_pct(_aligned(s))),
             ("peaks_q5", lambda s: _dash(s.get("peaks_q5"))),
             ("elapsed_min", lambda s: _fmt_min(s.get("elapsed_min"))),
             ("", _arrow_link),
@@ -728,10 +777,11 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
         return [
             ("accession", _acc_link),
             ("status", _status_cell),
+            ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
             ("tissue", lambda s: _dash(s.get("tissue"))),
             ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
             ("strain", lambda s: _dash(s.get("genotype_strain"))),
-            ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+            ("mapped %", lambda s: _fmt_pct(s.get("mapping_rate"))),
             ("mean_CpG", lambda s: _fmt_frac_pct(s.get("mean_cpg"))),
             ("mean_CHG", lambda s: _fmt_frac_pct(s.get("mean_chg"))),
             ("mean_CHH", lambda s: _fmt_frac_pct(s.get("mean_chh"))),
@@ -847,13 +897,13 @@ def render_summary(samples: list[dict]) -> str:
 
         # Stats summary for ok samples
         if s_ok:
-            mapping_rates = [s.get("mapping_rate") for s in s_ok if s.get("mapping_rate") is not None]
+            mapping_rates = [_aligned(s) for s in s_ok if _aligned(s) is not None]
             elapsed = [s.get("elapsed_min") for s in s_ok if s.get("elapsed_min") is not None]
             avg_map = sum(mapping_rates) / len(mapping_rates) if mapping_rates else None
             avg_elapsed = sum(elapsed) / len(elapsed) if elapsed else None
 
             parts.append(f"<p>Successful: {len(s_ok)} samples. "
-                         f"Avg mapping rate: {_fmt(avg_map, 1)}%. "
+                         f"Avg alignment rate: {_fmt(avg_map, 1)}%. "
                          f"Avg elapsed: {_fmt(avg_elapsed, 1)} min.</p>\n")
 
         parts.append("</div>\n")
@@ -897,7 +947,7 @@ def render_methods() -> str:
         "<li>fastp 1.3.1 (QC + adapter trimming)</li>\n"
         "<li>bwa-mem2 2.3 (alignment)</li>\n"
         "<li>samtools 1.23.1 (sorting, deduplication)</li>\n"
-        "<li>MACS3 3.0.4 (peak calling; q-value thresholds 0.05, 0.10, 0.20)</li>\n"
+        "<li>MACS3 3.0.4 (peak calling at q &lt; 1e-5; peak sets at q &lt; 1e-5, 1e-10, 1e-20)</li>\n"
         "<li>bedtools 2.31.1 (BED operations)</li>\n"
         "<li>UCSC tools 482 (bigWig generation)</li>\n"
         "</ul>\n"
@@ -940,10 +990,14 @@ def render_methods() -> str:
     parts.append("<h2>Known Limitations</h2>\n")
     parts.append(
         "<ul>\n"
-        "<li>One failed sample (SRX29617452): bwa-mem2 produced SAM with SEQ/QUAL "
-        "length mismatch — likely a corrupted FASTQ in SRA. Manual inspection needed.</li>\n"
-        "<li>ATAC-Seq samples may have lower mapping rates due to plastid/mitochondrial reads; "
-        "no organelle filtering applied.</li>\n"
+        "<li>SRX29617452 failed during alignment with 32 threads (bwa-mem2 SEQ/QUAL length "
+        "mismatch). The FASTQ is intact (md5 matches ENA); it is being re-run with 16 threads.</li>\n"
+        "<li>Until the 2026-10 re-analysis is published, the reference lacks the chloroplast and "
+        "mitochondrion: organelle reads map to nuclear NUPT/NUMT copies, lowering BS-seq mapping "
+        "rates and creating spurious ATAC/input peaks there. QC flags mark the affected "
+        "experiments.</li>\n"
+        "<li>Several ChIP libraries contain non-Marchantia DNA (bacterial-like and human), up to "
+        "86% of reads; see each experiment's QC card.</li>\n"
         "<li>BS-seq <code>duplication_rate</code> is not computed (uses <code>dnmtools uniq</code> "
         "not samtools markdup).</li>\n"
         "<li>Antibody curation depends on SRA Experiment XML metadata quality; some targets "
@@ -1009,11 +1063,12 @@ def render_about() -> str:
         "<p>The catalog is backed by a SQLite database at <code>db/kknmsmd.db</code>. "
         "You can query it directly:</p>\n"
         '<pre class="log">'
-        "sqlite3 db/kknmsmd.db \"SELECT accession, library_strategy, mapping_rate FROM sample "
-        "WHERE library_strategy='ChIP-Seq' ORDER BY mapping_rate DESC LIMIT 10\""
+        "sqlite3 db/kknmsmd.db \"SELECT s.accession, q.qc_flag, q.aligned_pct FROM sample s "
+        "JOIN sample_qc q USING (accession) "
+        "WHERE s.library_strategy='ChIP-Seq' ORDER BY q.aligned_pct DESC LIMIT 10\""
         "</pre>\n"
         "<p>Tables: <code>sample</code>, <code>sample_curation</code>, "
-        "<code>sample_chipseq</code>, <code>sample_bsseq</code>.</p>\n"
+        "<code>sample_chipseq</code>, <code>sample_bsseq</code>, <code>sample_qc</code>.</p>\n"
     )
     parts.append("</div>\n")
 
@@ -1278,8 +1333,21 @@ def _load_samples(db_path: pathlib.Path) -> list[dict]:
             b.chg_cover_bw_path,
             b.chg_hypermr_path,
             b.chh_methyl_bw_path,
-            b.chh_cover_bw_path
+            b.chh_cover_bw_path,
+            q.qc_flag,
+            q.qc_reasons,
+            q.peak_flag,
+            q.aligned_pct,
+            q.dup_pct,
+            q.usable_fragments,
+            q.organelle_pct,
+            q.foreign_pct,
+            q.peaks_in_organelle_like_pct,
+            q.nonconv_pct,
+            q.frac_cpg_cov_ge5,
+            q.metrics_source
         FROM sample s
+        LEFT JOIN sample_qc q USING (accession)
         LEFT JOIN sample_curation c USING (accession)
         LEFT JOIN sample_chipseq ch USING (accession)
         LEFT JOIN sample_bsseq b USING (accession)
@@ -1497,6 +1565,13 @@ code {
 
 ul { margin: 0.3rem 0 0.5rem 1.2rem; }
 ul li { margin-bottom: 0.2rem; }
+
+.qc { display: inline-block; padding: 0 .45rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+.qc-PASS { background: #e4f3e2; color: #1d6b1d; }
+.qc-WARN { background: #fbf0d6; color: #8a5a00; }
+.qc-FAIL { background: #f9e2e0; color: #a12a2a; }
+.qc-NA   { background: #eee; color: #555; }
+.note { font-size: .85rem; color: #555; }
 """
 
 
