@@ -1,0 +1,127 @@
+"""QC flags for the zenigoke catalog (thresholds from the 2026-10-01 review).
+
+Pure functions: metrics dict -> flag. Missing metrics are skipped, so the same
+rules work on subsample estimates (docs/qc TSVs) and on zenigoke-v2 pipeline
+stats. A sample that completed but has no metrics at all gets "NA".
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional, Tuple
+
+
+def _num(m: Dict[str, Any], k: str) -> Optional[float]:
+    v = m.get(k)
+    try:
+        return None if v is None or v == "" else float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _worst(fails: List[str], warns: List[str], any_metric: bool) -> str:
+    if fails:
+        return "FAIL"
+    if warns:
+        return "WARN"
+    return "PASS" if any_metric else "NA"
+
+
+def chip_flag(m: Dict[str, Any]) -> Tuple[str, List[str], str]:
+    if m.get("status") not in (None, "ok"):
+        return "FAIL", ["pipeline did not complete"], "NA"
+    a, d = _num(m, "aligned_pct"), _num(m, "dup_pct")
+    frag, org = _num(m, "usable_fragments"), _num(m, "organelle_pct")
+    hum, bac = _num(m, "human_pct"), _num(m, "bacterial_pct")
+    fails: List[str] = []
+    warns: List[str] = []
+    if a is not None:
+        if a < 30:
+            fails.append(f"alignment rate {a:.0f}% < 30%")
+        elif a < 70:
+            warns.append(f"alignment rate {a:.0f}% < 70%")
+    if d is not None:
+        if d >= 80:
+            fails.append(f"duplication {d:.0f}% ≥ 80%")
+        elif d >= 50:
+            warns.append(f"duplication {d:.0f}% ≥ 50%")
+    if frag is not None:
+        if frag < 1e6:
+            fails.append(f"{frag / 1e6:.1f}M usable fragments < 1M")
+        elif frag < 4e6:
+            warns.append(f"{frag / 1e6:.1f}M usable fragments < 4M")
+    if hum is not None or bac is not None:
+        foreign = (hum or 0) + (bac or 0)
+        if foreign >= 10:
+            parts = []
+            if bac and bac >= 1:
+                parts.append(f"bacterial-like {bac:.0f}%")
+            if hum and hum >= 1:
+                parts.append(f"human {hum:.0f}%")
+            warns.append("non-Marchantia DNA " + ", ".join(parts))
+    if org is not None and org >= 20:
+        warns.append(f"organelle reads {org:.0f}%")
+    any_metric = any(x is not None for x in (a, d, frag, org, hum, bac))
+
+    p05, pov = _num(m, "peaks_q05"), _num(m, "peaks_in_organelle_like_pct")
+    if not p05:
+        peak_flag = "NA"
+    elif pov is not None and pov >= 20 and p05 >= 50:
+        peak_flag = "WARN"
+        warns.append(f"{pov:.0f}% of peaks in organelle-like (NUPT/NUMT) regions")
+    else:
+        peak_flag = "OK"
+    # peak_flag is reported separately; it does not change qc_flag on its own
+    flag = _worst(fails, [w for w in warns if "NUPT" not in w], any_metric)
+    return flag, fails + warns, peak_flag
+
+
+def bs_flag(m: Dict[str, Any]) -> Tuple[str, List[str]]:
+    if m.get("status") not in (None, "ok"):
+        return "FAIL", ["pipeline did not complete"]
+    cg, chg, chh = _num(m, "mean_cpg"), _num(m, "mean_chg"), _num(m, "mean_chh")
+    nc, fo, cov = _num(m, "nonconv"), _num(m, "foreign_pct"), _num(m, "frac_cpg_cov_ge5")
+    fails: List[str] = []
+    warns: List[str] = []
+    if None not in (cg, chg, chh) and min(cg, chg, chh) >= 0.9:
+        fails.append("methylation ≥ 0.9 in all contexts (reads mapped to the wrong strand)")
+    if nc is not None:
+        if nc >= 0.05:
+            fails.append(f"non-conversion {nc * 100:.1f}% ≥ 5%")
+        elif nc > 0.02:
+            warns.append(f"non-conversion {nc * 100:.1f}% > 2%")
+    if fo is not None and fo >= 50:
+        warns.append(f"non-Marchantia reads {fo:.0f}%")
+    if cov is not None and cov < 0.05:
+        warns.append(f"only {cov * 100:.1f}% of CpGs covered ≥5×")
+    any_metric = any(x is not None for x in (cg, chg, chh, nc, fo, cov))
+    return _worst(fails, warns, any_metric), fails + warns
+
+
+def chip_metrics_from_tsv(r: Dict[str, str]) -> Dict[str, Any]:
+    """Map a docs/qc/2026-10-01-chip-atlas-qc.tsv row to chip_flag() input."""
+    return {
+        "status": r.get("status") or "ok",
+        "aligned_pct": r.get("aligned_pct"),
+        "dup_pct": r.get("dup_pct"),
+        "usable_fragments": r.get("usable_fragments"),
+        "organelle_pct": r.get("organelle_pct"),
+        "human_pct": r.get("human_pct"),
+        "bacterial_pct": r.get("other_unmapped_pct"),
+        "peaks_q05": r.get("peaks_q05"),
+        "peaks_in_organelle_like_pct": r.get("peaks_in_organelle_like_pct"),
+    }
+
+
+def bs_metrics_from_tsv(r: Dict[str, str]) -> Dict[str, Any]:
+    """Map a docs/qc/2026-10-01-bsseq-qc.tsv row to bs_flag() input."""
+    unmapped = _num(r, "pct_reads_unmapped_all_refs")
+    bacteria = _num(r, "pct_reads_bacteria_panel")
+    foreign = None if unmapped is None and bacteria is None else (unmapped or 0) + (bacteria or 0)
+    return {
+        "status": "ok",
+        "mean_cpg": r.get("mean_cpg"),
+        "mean_chg": r.get("mean_chg"),
+        "mean_chh": r.get("mean_chh"),
+        "nonconv": r.get("nonconv_chrC_CHH"),
+        "foreign_pct": foreign,
+        "frac_cpg_cov_ge5": r.get("frac_cpg_cov_ge5"),
+    }

@@ -374,3 +374,45 @@ def test_parse_bsseq_stats_v2_extra_columns():
     assert v2["unique_rate"] == 60.1
     assert v2["organelle_pct"] == 45.2
     assert v2["nonconv"] == 0.0207
+
+
+# ---------------------------------------------------------------------------
+# Test: sample_qc population (QC TSV + pipeline stats)
+# ---------------------------------------------------------------------------
+
+def test_build_populates_sample_qc_from_tsv(tmp_path):
+    data_root = tmp_path / "data"
+    out = data_root / "output" / "chipseq" / "SRX9800303"
+    _write(out / "SRX9800303.stats.tsv", "\t".join(LEGACY_CHIP).replace("SRX1", "SRX9800303") + "\n")
+    _write(data_root / "status" / "SRX9800303.ok", "")
+    qc_dir = tmp_path / "qc"
+    _write(qc_dir / "2026-10-01-chip-atlas-qc.tsv",
+           "accession\tstrategy\tstatus\taligned_pct\tdup_pct\tusable_fragments\torganelle_pct\t"
+           "human_pct\tother_unmapped_pct\tpeaks_q05\tpeaks_in_organelle_like_pct\tqc_flag\tpeak_flag\n"
+           "SRX9800303\tChIP-Seq\tok\t12.9\t26.6\t5600000\t0.3\t0.2\t86\t2662\t1.0\tFAIL\tOK\n")
+    db = tmp_path / "k.db"
+    bcd.build(data_root, tmp_path / "meta", db, qc_dir=qc_dir)
+    row = sqlite3.connect(str(db)).execute(
+        "SELECT qc_flag, aligned_pct, metrics_source FROM sample_qc WHERE accession='SRX9800303'").fetchone()
+    assert row == ("FAIL", 12.9, "subsample-2026-10-01")
+
+
+def test_build_sample_qc_without_tsv_uses_pipeline_stats(tmp_path):
+    """v2 pipeline stats alone give a flag; legacy without any TSV is NA with no source."""
+    data_root = tmp_path / "data"
+    v2 = V2_CHIP[:]
+    v2[0] = "SRX9800304"
+    _write(data_root / "output" / "chipseq" / "SRX9800304" / "SRX9800304.stats.tsv", "\t".join(v2) + "\n")
+    _write(data_root / "status" / "SRX9800304.ok", "")
+    legacy = LEGACY_CHIP[:]
+    legacy[0] = "SRX9800305"
+    _write(data_root / "output" / "chipseq" / "SRX9800305" / "SRX9800305.stats.tsv", "\t".join(legacy) + "\n")
+    _write(data_root / "status" / "SRX9800305.ok", "")
+    db = tmp_path / "k.db"
+    bcd.build(data_root, tmp_path / "meta", db)
+    c = sqlite3.connect(str(db))
+    v2row = c.execute("SELECT qc_flag, aligned_pct, dup_pct, metrics_source FROM sample_qc "
+                      "WHERE accession='SRX9800304'").fetchone()
+    assert v2row == ("PASS", 93.0, 20.0, "pipeline")
+    assert c.execute("SELECT qc_flag, metrics_source FROM sample_qc WHERE accession='SRX9800305'"
+                     ).fetchone() == ("NA", None)

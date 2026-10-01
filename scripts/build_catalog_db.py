@@ -12,17 +12,25 @@ Public API:
   populate_curation(conn, accession, curation)
   populate_chipseq(conn, accession, output_dir, stats)
   populate_bsseq(conn, accession, output_dir, stats)
-  build(data_root, metadata_root, db_path)
+  load_qc_tsvs(qc_dir)         -> Dict[str, dict]
+  qc_row(row, tsv)             -> dict
+  populate_qc(conn, accession, qc)
+  build(data_root, metadata_root, db_path, qc_dir=None)
   main(argv=None)
 """
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import os
 import pathlib
 import sqlite3
+import sys
 from typing import Any, Dict, Iterator, List, Optional
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import qc_flags  # noqa: E402
 
 log = logging.getLogger(__name__)
 
@@ -92,6 +100,22 @@ CREATE TABLE sample_bsseq (
   chh_methyl_bw_path   TEXT,
   chh_cover_bw_path    TEXT
 );
+CREATE TABLE sample_qc (
+  accession                    TEXT PRIMARY KEY REFERENCES sample(accession),
+  qc_flag                      TEXT NOT NULL,
+  qc_reasons                   TEXT,
+  peak_flag                    TEXT,
+  aligned_pct                  REAL,
+  dup_pct                      REAL,
+  usable_fragments             INTEGER,
+  organelle_pct                REAL,
+  foreign_pct                  REAL,
+  peaks_in_organelle_like_pct  REAL,
+  nonconv_pct                  REAL,
+  frac_cpg_cov_ge5             REAL,
+  metrics_source               TEXT
+);
+CREATE INDEX idx_qc_flag ON sample_qc(qc_flag);
 CREATE INDEX idx_curation_tissue   ON sample_curation(tissue);
 CREATE INDEX idx_curation_stage    ON sample_curation(developmental_stage);
 CREATE INDEX idx_curation_strain   ON sample_curation(genotype_strain);
@@ -623,6 +647,90 @@ def populate_bsseq(
 
 
 # ---------------------------------------------------------------------------
+# QC flags (sample_qc)
+# ---------------------------------------------------------------------------
+
+QC_TSV_NAMES = {"chip": "2026-10-01-chip-atlas-qc.tsv", "bs": "2026-10-01-bsseq-qc.tsv"}
+
+
+def load_qc_tsvs(qc_dir: Optional[pathlib.Path]) -> Dict[str, Dict[str, str]]:
+    """accession -> raw TSV row (with '_kind' = chip|bs). Empty if qc_dir is None."""
+    out: Dict[str, Dict[str, str]] = {}
+    if qc_dir is None:
+        return out
+    for kind, name in QC_TSV_NAMES.items():
+        p = qc_dir / name
+        if not p.exists():
+            continue
+        with p.open() as fh:
+            for r in csv.DictReader(fh, delimiter="\t"):
+                out[r["accession"]] = {**r, "_kind": kind}
+    return out
+
+
+def qc_row(row: Dict[str, Any], tsv: Optional[Dict[str, str]]) -> Dict[str, Any]:
+    """Merge pipeline stats (preferred when zenigoke-v2) with subsample estimates."""
+    strat, status = row["library_strategy"], row["status"]
+    if strat in ("ChIP-Seq", "ATAC-Seq"):
+        m = qc_flags.chip_metrics_from_tsv(tsv) if tsv else {}
+        m["status"] = status
+        st = row.get("_chipseq_stats", {})
+        source = "subsample-2026-10-01" if tsv else None
+        if st.get("format") == "zenigoke-v2":
+            pe = row.get("layout") == "1"
+            nuc = st.get("nuclear_usable_reads") or 0
+            usable = st.get("usable_reads") or 0
+            m.update({
+                "aligned_pct": st.get("mapping_rate"),
+                "dup_pct": st.get("duplication_rate"),
+                "usable_fragments": nuc / 2 if pe else nuc,
+                "organelle_pct": 100.0 * (st.get("organelle_usable_reads") or 0) / usable if usable else None,
+                "peaks_q05": st.get("peaks_q5"),
+                "peaks_in_organelle_like_pct": 0.0,  # v2 peaks are blacklist-filtered
+            })
+            source = "pipeline+subsample" if tsv else "pipeline"
+        flag, reasons, peak_flag = qc_flags.chip_flag(m)
+        hum, bac = m.get("human_pct"), m.get("bacterial_pct")
+        foreign = None if hum in (None, "") and bac in (None, "") else float(hum or 0) + float(bac or 0)
+        return {"qc_flag": flag, "qc_reasons": "; ".join(reasons), "peak_flag": peak_flag,
+                "aligned_pct": _safe_float(m.get("aligned_pct")), "dup_pct": _safe_float(m.get("dup_pct")),
+                "usable_fragments": _safe_int(_safe_float(m.get("usable_fragments"))),
+                "organelle_pct": _safe_float(m.get("organelle_pct")), "foreign_pct": foreign,
+                "peaks_in_organelle_like_pct": _safe_float(m.get("peaks_in_organelle_like_pct")),
+                "nonconv_pct": None, "frac_cpg_cov_ge5": None, "metrics_source": source}
+    m = qc_flags.bs_metrics_from_tsv(tsv) if tsv else {}
+    m["status"] = status
+    st = row.get("_bsseq_stats", {})
+    source = "subsample-2026-10-01" if tsv else None
+    for k in ("mean_cpg", "mean_chg", "mean_chh"):
+        if st.get(k) is not None:
+            m[k] = st[k]
+    if st.get("nonconv") is not None:
+        m["nonconv"] = st["nonconv"]
+        source = "pipeline+subsample" if tsv else "pipeline"
+    flag, reasons = qc_flags.bs_flag(m)
+    nc = _safe_float(m.get("nonconv"))
+    return {"qc_flag": flag, "qc_reasons": "; ".join(reasons), "peak_flag": None,
+            "aligned_pct": None, "dup_pct": None, "usable_fragments": None,
+            "organelle_pct": _safe_float(st.get("organelle_pct")) if st.get("organelle_pct") is not None
+            else _safe_float((tsv or {}).get("pct_reads_chrC")),
+            "foreign_pct": _safe_float(m.get("foreign_pct")),
+            "peaks_in_organelle_like_pct": None,
+            "nonconv_pct": nc * 100 if nc is not None else None,
+            "frac_cpg_cov_ge5": _safe_float(m.get("frac_cpg_cov_ge5")), "metrics_source": source}
+
+
+def populate_qc(conn: sqlite3.Connection, accession: str, q: Dict[str, Any]) -> None:
+    cols = ["qc_flag", "qc_reasons", "peak_flag", "aligned_pct", "dup_pct", "usable_fragments",
+            "organelle_pct", "foreign_pct", "peaks_in_organelle_like_pct", "nonconv_pct",
+            "frac_cpg_cov_ge5", "metrics_source"]
+    conn.execute(
+        f"INSERT OR REPLACE INTO sample_qc(accession, {', '.join(cols)}) VALUES ({', '.join('?' * (len(cols) + 1))})",
+        [accession] + [q.get(c) for c in cols],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main build function
 # ---------------------------------------------------------------------------
 
@@ -630,9 +738,11 @@ def build(
     data_root: pathlib.Path,
     metadata_root: pathlib.Path,
     db_path: pathlib.Path,
+    qc_dir: Optional[pathlib.Path] = None,
 ) -> Dict[str, int]:
     """Drop + recreate the DB, populate all tables. Returns row count dict."""
     output_root = data_root / "output"
+    qc = load_qc_tsvs(qc_dir)
 
     # Drop and recreate
     if db_path.exists():
@@ -649,6 +759,7 @@ def build(
         "sample_curation": 0,
         "sample_chipseq": 0,
         "sample_bsseq": 0,
+        "sample_qc": 0,
     }
 
     for row in collect_sample_rows(data_root, output_root, metadata_root):
@@ -662,6 +773,12 @@ def build(
         except Exception as e:
             log.error("Failed to insert sample row for %s: %s", acc, e)
             continue
+
+        try:
+            populate_qc(conn, acc, qc_row(row, qc.get(acc)))
+            counts["sample_qc"] += 1
+        except Exception as e:
+            log.warning("Failed to insert QC row for %s: %s", acc, e)
 
         curation = row.get("_curation", {})
         if curation:
@@ -709,6 +826,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--data-root", default="/data1/zenigoke")
     p.add_argument("--metadata-root", default="metadata")
     p.add_argument("--output", default="db/kknmsmd.db")
+    p.add_argument("--qc-dir", default="docs/qc",
+                   help="directory with the 2026-10-01 QC TSVs (default: docs/qc)")
     args = p.parse_args(argv)
 
     data_root = pathlib.Path(args.data_root)
@@ -718,8 +837,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"Building catalog DB: {db_path}")
     print(f"  data-root:     {data_root}")
     print(f"  metadata-root: {metadata_root}")
+    print(f"  qc-dir:        {args.qc_dir}")
 
-    counts = build(data_root, metadata_root, db_path)
+    counts = build(data_root, metadata_root, db_path, qc_dir=pathlib.Path(args.qc_dir))
 
     print("\nRow counts:")
     for table, n in counts.items():
