@@ -69,6 +69,13 @@ for var in SAMPLE_ID FASTQ_FWD GENOME_FA CHROM_SIZES GENOME_SIZE OUTDIR; do
   fi
 done
 
+# A mistyped or not-bind-mounted --blacklist must fail loudly, not silently
+# disable filtering while still writing zenigoke-v2 stats.
+if [ -n "$BLACKLIST" ] && [ ! -r "$BLACKLIST" ]; then
+  echo "ERROR: --blacklist file not found or unreadable: $BLACKLIST"
+  exit 1
+fi
+
 mkdir -p "$OUTDIR"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
@@ -134,7 +141,7 @@ log "Step 1 done: $((STEP1_END - STEP1_START))s"
 DEDUP_BAM_SIZE=$(wc -c < "$DEDUP_BAM" 2>/dev/null || echo 0)
 
 # ============================================================
-# Step 2: BigWig + MACS3 in parallel (both read dedup BAM from NVMe)
+# Step 2: BigWig + MACS3 in parallel (both read the nuclear BAM from NVMe)
 # ============================================================
 log "Step 2: BigWig + MACS3 (parallel)"
 STEP2_START=$(date +%s)
@@ -186,13 +193,18 @@ PEAKS_05="$WORK/${SAMPLE_ID}_peaks.narrowPeak"
 
 if [ -f "$PEAKS_05" ]; then
   mv "$PEAKS_05" "$OUTDIR/${SAMPLE_ID}.05_peaks.narrowPeak"
+  # .05_peaks.xls is MACS3's raw table; it is not blacklist-filtered.
   mv "$WORK/${SAMPLE_ID}_peaks.xls" "$OUTDIR/${SAMPLE_ID}.05_peaks.xls" 2>/dev/null || true
   PEAKS_05="$OUTDIR/${SAMPLE_ID}.05_peaks.narrowPeak"
-  if [ -n "$BLACKLIST" ] && [ -s "$BLACKLIST" ]; then
-    N_BEFORE=$(wc -l < "$PEAKS_05")
-    bedtools intersect -v -a "$PEAKS_05" -b "$BLACKLIST" > "$WORK/.peaks05.filtered"
-    mv "$WORK/.peaks05.filtered" "$PEAKS_05"
-    log "  Blacklist: removed $((N_BEFORE - $(wc -l < "$PEAKS_05"))) of $N_BEFORE q05 peaks"
+  if [ -n "$BLACKLIST" ]; then
+    if [ -s "$BLACKLIST" ]; then
+      N_BEFORE=$(wc -l < "$PEAKS_05")
+      bedtools intersect -v -a "$PEAKS_05" -b "$BLACKLIST" > "$WORK/.peaks05.filtered"
+      mv "$WORK/.peaks05.filtered" "$PEAKS_05"
+      log "  Blacklist: removed $((N_BEFORE - $(wc -l < "$PEAKS_05"))) of $N_BEFORE q05 peaks"
+    else
+      log "  Blacklist: $BLACKLIST is empty, skipped"
+    fi
   fi
 
   awk '$9 >= 10' "$PEAKS_05" > "$OUTDIR/${SAMPLE_ID}.10_peaks.narrowPeak"
