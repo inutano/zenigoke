@@ -62,7 +62,7 @@ report/
 ├── summary.html, methods.html, about.html
 ├── samples/{acc}.html × 157
 ├── strategy/{chipseq,atacseq,bsseq}.html
-└── assets/{matrix.js,matrix.css,enrichment.js,style.css}
+└── assets/{igv.js,matrix.js,matrix.css,enrichment.js,style.css}
 
 tests/                     # pytest, 51 tests across 8 files
 deploy/

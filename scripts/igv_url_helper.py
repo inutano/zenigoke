@@ -32,7 +32,7 @@ def per_sample_tracks(sample: dict, q_cutoff: str, color: str) -> list[dict]:
             {"name": f"{acc} bigwig", "url": f"{base}/output/{sub}/{acc}/{acc}.bw",
              "type": "wig", "color": color, "group": sample.get("_group", "")},
             {"name": f"{acc} peaks q≤{q_cutoff}",
-             "url": f"{base}/output/{sub}/{acc}/{acc}.{q_label}_peaks.narrowPeak",
+             "url": f"{base}/output/{sub}/{acc}/{acc}.{q_label}.bb",
              "type": "annotation", "color": color, "group": sample.get("_group", "")},
         ]
     if strat == "Bisulfite-Seq":

@@ -544,3 +544,35 @@ def test_summary_uses_alignment_rate():
     assert "Avg mapping rate" not in out
     # mean of aligned_pct 12.9 and legacy mapping_rate fallback 85.3 = 49.1
     assert "49.1%" in out
+
+
+# ---------------------------------------------------------------------------
+# IGV hand-off wiring: igv.js must load before its consumers; matrix.js must
+# not be loaded where the matrix UI does not exist (enrichment) because its
+# top-level init() used to throw "xsel is null" there.
+# ---------------------------------------------------------------------------
+
+def _script_order(html: str) -> list:
+    import re
+    return re.findall(r"<script src='assets/([\w.]+)'", html)
+
+
+def test_igv_js_loaded_before_consumers():
+    assert _script_order(bcp.render_index([])) == ["igv.js", "matrix.js"]
+    assert _script_order(bcp.render_enrichment_page()) == ["igv.js", "enrichment.js"]
+    # bundle.html keeps matrix.js for resolveStrategy
+    assert _script_order(bcp.render_bundle_shell()) == ["igv.js", "matrix.js"]
+
+
+def test_bundle_and_enrichment_get_data_base(monkeypatch):
+    monkeypatch.setenv("ZENIGOKE_DATA_BASE", "https://b.s3.ap-northeast-1.amazonaws.com/")
+    for html in (bcp.render_index([]), bcp.render_enrichment_page(), bcp.render_bundle_shell()):
+        assert "window.ZENIGOKE_DATA_BASE='https://b.s3.ap-northeast-1.amazonaws.com/'" in html
+        assert html.index("ZENIGOKE_DATA_BASE=") < html.index("assets/igv.js")
+
+
+def test_bundle_group_spec_parse_keeps_colons_in_labels():
+    # Labels like "ChIP:H3K27me3 × WT" contain ':'; the accession list follows the LAST ':'.
+    html = bcp.render_bundle_shell()
+    assert "part.lastIndexOf(':')" in html
+    assert "part.split(':')" not in html

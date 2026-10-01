@@ -9,6 +9,7 @@ const ui = {
   strats: () => Array.from(document.querySelectorAll(".strat:checked")).map(e => e.value),
   runBtn: () => document.getElementById("run-btn"),
   status: () => document.getElementById("run-status"),
+  igvStatus: () => document.getElementById("igv-status"),
   card:   () => document.getElementById("results-card"),
   summary: () => document.getElementById("results-summary"),
   tbody:  () => document.querySelector("#results-table tbody"),
@@ -79,39 +80,50 @@ function render(data) {
       <td>${r.fold_enrichment.toFixed(2)}</td>
       <td>${r.p_value.toExponential(2)}</td>
       <td>${r.q_value.toExponential(2)}</td>
-      <td><a href="#" data-acc="${r.accession}" data-strat="${r.library_strategy}" class="row-igv">&#9654; IGV</a></td>`;
+      <td><a href="#" data-idx="${i}" class="row-igv">&#9654; IGV</a></td>`;
     tbody.appendChild(tr);
   });
   for (const a of tbody.querySelectorAll("a.row-igv")) {
     a.addEventListener("click", e => {
       e.preventDefault();
-      const acc = a.dataset.acc, strat = a.dataset.strat;
-      sendOneToIGV(acc, strat);
+      sendOneToIGV(data.results[Number(a.dataset.idx)], a);
     });
   }
 }
 
-function sendOneToIGV(acc, strat) {
-  const tracks = window.tracksForAccession(acc, {strategy: strat, q_cutoff: ui.q().value}, "#3060a0");
-  const param = tracks.map(t => t.url + "|" + t.name).join(",");
-  fetch("http://localhost:60151/load?file=" + encodeURIComponent(param))
-    .catch(e => alert("Could not reach IGV at :60151."));
+const IGV_PALETTE = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
+
+function igvTracksFor(r, color) {
+  return ZenigokeIGV.tracksForAccession(
+    r.accession,
+    {strategy: r.library_strategy, q_cutoff: ui.q().value, label: r.antibody_target || ""},
+    color, window.ZENIGOKE_DATA_BASE || "");
+}
+
+async function sendToIGV(tracks) {
+  const el = ui.igvStatus();
+  if (tracks.length === 0) {
+    el.textContent = "No IGV tracks for these results.";
+    return {ok: false};
+  }
+  el.textContent = "Loading into IGV…";
+  const r = await ZenigokeIGV.send(tracks);
+  el.textContent = (r.ok ? "✔ " : "✖ ") + r.message;
+  return r;
+}
+
+async function sendOneToIGV(r, link) {
+  const res = await sendToIGV(igvTracksFor(r, IGV_PALETTE[0]));
+  link.innerHTML = (res.ok ? "&#10004;" : "&#10006;") + " IGV";
 }
 
 function sendTopToIGV(n) {
   if (!lastResults) return;
-  const palette = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
   const all = [];
   for (let i = 0; i < Math.min(n, lastResults.results.length); i++) {
-    const r = lastResults.results[i];
-    const tracks = window.tracksForAccession(r.accession,
-      {strategy: r.library_strategy, q_cutoff: ui.q().value},
-      palette[i % palette.length]);
-    all.push(...tracks);
+    all.push(...igvTracksFor(lastResults.results[i], IGV_PALETTE[i % IGV_PALETTE.length]));
   }
-  const param = all.map(t => t.url + "|" + t.name).join(",");
-  fetch("http://localhost:60151/load?file=" + encodeURIComponent(param))
-    .catch(e => alert("Could not reach IGV at :60151."));
+  return sendToIGV(all);
 }
 
 function downloadCsv() {

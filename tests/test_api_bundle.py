@@ -85,6 +85,12 @@ def test_bundle_builds_consensus_for_two_chip_samples(client, tmp_path):
     assert "hash" in body and len(body["hash"]) == 16
     assert any(t["name"].startswith("consensus ChIP-Seq") for t in body["tracks"])
     assert sum(1 for t in body["tracks"] if "bigwig" in t["name"]) == 2
+    # per-sample peak tracks point at the bigBed the pipeline publishes, not the raw narrowPeak
+    peak_urls = [t["url"] for t in body["tracks"] if "peaks" in t["name"]]
+    assert sorted(peak_urls) == [
+        "http://test.example/output/chipseq/SRX_A/SRX_A.10.bb",
+        "http://test.example/output/chipseq/SRX_B/SRX_B.10.bb",
+    ]
 
 
 def test_bundle_cache_hit_skips_bedtools(client, tmp_path):
