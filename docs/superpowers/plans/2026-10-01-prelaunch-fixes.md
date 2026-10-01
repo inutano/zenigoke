@@ -57,7 +57,7 @@
 | `scripts/igv_url_helper.py` | modify | peaks as bigBed |
 | `scripts/api_enrichment.py` | modify | blacklist filtering of user BED and peak files |
 | `deploy/aws/02-sync-data.sh` | modify | drop `--size-only`; `--dryrun` / `--delete`; also upload `configs/organelle_like_regions…bed` |
-| `deploy/aws/04-ec2-bootstrap.sh` | modify | peaks `--delete`, DB refresh, enrichment cache dir, restart |
+| `deploy/aws/04-ec2-bootstrap.sh` | modify | peaks `--delete`, DB refresh, enrichment cache dir (cleared on refresh), restart; re-run safe |
 | `scripts/cpg_coverage.py` | create | CpG ≥5× coverage of v2 BS outputs (`docs/qc/bsseq-v2-cpgcov.tsv`) |
 | `tests/test_qc_flags.py`, `tests/test_igv_js.py`, `tests/js/igv.test.js` | create | new tests |
 | `tests/test_build_catalog_db.py`, `tests/test_build_report.py`, `tests/test_build_catalog_pages.py`, `tests/test_api_enrichment.py` | modify | updated/added tests |
@@ -1392,8 +1392,8 @@ mv logs logs-v1 && mv logs-v2 logs
 
 ### Task 13: Deploy (only after the owner confirms)
 
-- [ ] **Sync, dry run first** (profile `chiba-dsc`): `bash deploy/aws/02-sync-data.sh --dryrun --delete` and read the delete list (expected: only v1 files the v2 run no longer writes, e.g. `.NN.bb` / `.05_peaks.narrowPeak` of inputs/IgGs whose peaks were all blacklisted); then `bash deploy/aws/02-sync-data.sh --delete` (~40 GB) — uploads outputs, DB and the blacklist BED. The DB must be on S3 before the merge: the Pages workflow builds from it.
-- [ ] **Local check before merging** (merging deploys Pages): the owner opens a local build (`python3 scripts/server.py`) and sends a matrix selection and an enrichment top-10 to real IGV desktop; tracks load on the GenArk genome with "q < 1e-10" peak track names.
+- [ ] **Local IGV check first** (needs no S3 change, so do it before the `--delete` sync; the merge deploys Pages, so before that too): the owner opens a local build (`python3 scripts/server.py`) and sends a matrix selection and an enrichment top-10 to real IGV desktop; tracks load on the GenArk genome with "q < 1e-10" peak track names.
+- [ ] **Sync, dry run first** (every `aws` call from this machine uses profile `chiba-dsc`, so prefix the script with it): `AWS_PROFILE=chiba-dsc bash deploy/aws/02-sync-data.sh --dryrun --delete` and read the delete list (expected: only v1 files the v2 run no longer writes, e.g. `.NN.bb` / `.05_peaks.narrowPeak` of inputs/IgGs whose peaks were all blacklisted); then `AWS_PROFILE=chiba-dsc bash deploy/aws/02-sync-data.sh --delete` (~40 GB) — uploads outputs, DB and the blacklist BED. The DB must be on S3 before the merge: the Pages workflow builds from it.
 - [ ] Merge `prelaunch-fixes` → `main` and push (Pages workflow rebuilds from the S3 DB).
-- [ ] **EC2** (`zenigoke.inutano.com`): re-run `bash deploy/aws/04-ec2-bootstrap.sh` — pulls the code, mirrors peaks with `--delete`, refreshes `db/kknmsmd.db`, creates `/var/cache/zenigoke-enrich` and sets `ZENIGOKE_ENRICH_CACHE`, restarts `zenigoke.service`. Verify `POST /api/enrichment` on a known BED (response includes `n_user_regions_excluded`).
+- [ ] **EC2** (`zenigoke.inutano.com`): ssh to the instance (`ssh -i ~/.ssh/zenigoke.pem ubuntu@<EIP>`) and re-run `bash deploy/aws/04-ec2-bootstrap.sh` there. Do not set `AWS_PROFILE` on the instance: its `aws` calls use the IAM instance profile `zenigoke-ec2-s3read`, and `chiba-dsc` does not exist there. The script pulls the code, mirrors peaks with `--delete`, refreshes `db/kknmsmd.db`, creates `/var/cache/zenigoke-enrich` and clears its `blacklisted/` cache, sets `ZENIGOKE_ENRICH_CACHE`, restarts `zenigoke.service`; a re-run is safe (the caddy keyring is overwritten with `gpg --batch --yes`). Verify `POST /api/enrichment` on a known BED (response includes `n_user_regions_excluded`).
 - [ ] Verify live: a sample page shows the QC card; matrix "Send to IGV" against real IGV desktop loads tracks on the GenArk genome (owner checks, since IGV desktop is not available here).
