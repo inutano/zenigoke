@@ -569,3 +569,25 @@ def test_build_warns_when_qc_dir_has_no_tsvs(tmp_path, caplog):
     with caplog.at_level("WARNING"):
         bcd.build(data_root, tmp_path / "meta", tmp_path / "k2.db")      # no qc_dir: not an error
     assert not any("QC TSV" in r.getMessage() for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Tests: curation overrides
+# ---------------------------------------------------------------------------
+
+def test_curation_overrides_apply(tmp_path):
+    p = tmp_path / "o.tsv"
+    p.write_text("# c\naccession\tfield\tvalue\treason\nSRX1\tantibody_target\tH3\tt\n")
+    ov = bcd.load_curation_overrides(p)
+    cur = {"antibody_target": "H2A", "tissue": "thallus"}
+    assert bcd.apply_curation_overrides(cur, ov["SRX1"]) == {"antibody_target": "H3", "tissue": "thallus"}
+    assert cur["antibody_target"] == "H2A"  # input not mutated
+    with pytest.raises(ValueError):
+        bcd.apply_curation_overrides(cur, {"antibdy": "x"})
+
+
+def test_repo_overrides_file_is_valid():
+    ov = bcd.load_curation_overrides(pathlib.Path(__file__).resolve().parent.parent / "configs/curation_overrides.tsv")
+    assert len(ov) == 12
+    for acc, fields in ov.items():
+        bcd.apply_curation_overrides({}, fields)

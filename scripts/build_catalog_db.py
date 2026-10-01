@@ -7,6 +7,8 @@ Public API:
   parse_chipseq_stats(row)     -> dict
   parse_bsseq_stats(row)       -> dict
   parse_curation_json(d)       -> dict
+  load_curation_overrides(path) -> Dict[str, Dict[str, str]]
+  apply_curation_overrides(curation, overrides) -> dict
   collect_sample_rows(...)     -> Iterator[dict]
   populate_sample(conn, row)
   populate_curation(conn, accession, curation)
@@ -15,7 +17,7 @@ Public API:
   load_qc_tsvs(qc_dir)         -> Dict[str, dict]
   qc_row(row, tsv)             -> dict
   populate_qc(conn, accession, qc)
-  build(data_root, metadata_root, db_path, qc_dir=None)
+  build(data_root, metadata_root, db_path, qc_dir=None, curation_overrides=None)
   main(argv=None)
 """
 from __future__ import annotations
@@ -263,8 +265,40 @@ def parse_bsseq_stats(row: List[str]) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Curation parsing
+# Curation parsing and overrides
 # ---------------------------------------------------------------------------
+
+CURATION_FIELDS = ("tissue", "cell_type", "developmental_stage",
+                   "genotype_strain", "treatment", "antibody_target")
+
+
+def load_curation_overrides(path: Optional[pathlib.Path]) -> Dict[str, Dict[str, str]]:
+    """Load curation overrides from TSV file (accession -> {field: value}).
+
+    Returns empty dict if path is None or doesn't exist.
+    Format: comment lines (start with #), then header row, then data rows.
+    """
+    out: Dict[str, Dict[str, str]] = {}
+    if path is None or not path.exists():
+        return out
+    with path.open() as fh:
+        rows = csv.DictReader((ln for ln in fh if not ln.startswith("#")), delimiter="\t")
+        for r in rows:
+            out.setdefault(r["accession"], {})[r["field"]] = r["value"]
+    return out
+
+
+def apply_curation_overrides(curation: Dict[str, Any], overrides: Dict[str, str]) -> Dict[str, Any]:
+    """Apply curation overrides to a curation dict.
+
+    Returns a new dict (does not mutate the input).
+    Raises ValueError if any override field is unknown.
+    """
+    bad = set(overrides) - set(CURATION_FIELDS)
+    if bad:
+        raise ValueError(f"unknown curation field(s): {sorted(bad)}")
+    return {**curation, **overrides}
+
 
 def parse_curation_json(d: Dict[str, Any]) -> Dict[str, Any]:
     """Merge extract + extract_experiment into a flat curation dict.
@@ -758,10 +792,12 @@ def build(
     metadata_root: pathlib.Path,
     db_path: pathlib.Path,
     qc_dir: Optional[pathlib.Path] = None,
+    curation_overrides: Optional[pathlib.Path] = None,
 ) -> Dict[str, int]:
     """Drop + recreate the DB, populate all tables. Returns row count dict."""
     output_root = data_root / "output"
     qc = load_qc_tsvs(qc_dir)
+    overrides = load_curation_overrides(curation_overrides)
     if qc_dir is not None and not any((qc_dir / n).exists() for n in QC_TSV_NAMES.values()):
         log.warning("qc-dir %s contains none of the QC TSVs %s; sample_qc will use pipeline stats only",
                     qc_dir, sorted(QC_TSV_NAMES.values()))
@@ -803,6 +839,8 @@ def build(
             log.warning("Failed to insert QC row for %s: %s", acc, e)
 
         curation = row.get("_curation", {})
+        if acc in overrides:
+            curation = apply_curation_overrides(curation, overrides[acc])
         if curation:
             try:
                 populate_curation(conn, acc, curation)
@@ -850,18 +888,23 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--output", default="db/kknmsmd.db")
     p.add_argument("--qc-dir", default="docs/qc",
                    help="directory with the 2026-10-01 QC TSVs (default: docs/qc)")
+    p.add_argument("--curation-overrides", default="configs/curation_overrides.tsv",
+                   help="TSV file with curation field overrides (default: configs/curation_overrides.tsv)")
     args = p.parse_args(argv)
 
     data_root = pathlib.Path(args.data_root)
     metadata_root = pathlib.Path(args.metadata_root)
     db_path = pathlib.Path(args.output)
+    curation_overrides_path = pathlib.Path(args.curation_overrides)
 
     print(f"Building catalog DB: {db_path}")
     print(f"  data-root:     {data_root}")
     print(f"  metadata-root: {metadata_root}")
     print(f"  qc-dir:        {args.qc_dir}")
+    print(f"  curation-overrides: {curation_overrides_path}")
 
-    counts = build(data_root, metadata_root, db_path, qc_dir=pathlib.Path(args.qc_dir))
+    counts = build(data_root, metadata_root, db_path, qc_dir=pathlib.Path(args.qc_dir),
+                   curation_overrides=curation_overrides_path)
 
     print("\nRow counts:")
     for table, n in counts.items():
