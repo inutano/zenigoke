@@ -12,6 +12,7 @@ Algorithm:
 from __future__ import annotations
 import hashlib
 import json
+import logging
 import os
 import pathlib
 import subprocess
@@ -26,6 +27,7 @@ from scipy.stats import binom
 from api_axes import _db
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 QCutoff = Literal["1e-5", "1e-10", "1e-20"]
 MAX_REGIONS = 50000
@@ -88,12 +90,20 @@ def _genome_bp() -> int:
 # Blacklist (NUPT/NUMT-like regions): excluded from user BED and sample peaks
 # ---------------------------------------------------------------------------
 
+_WARNED_BLACKLISTS: set[str] = set()
+
+
 def _blacklist_path() -> pathlib.Path | None:
     raw = os.getenv("ZENIGOKE_BLACKLIST")
     if raw is None:
         raw = str(pathlib.Path(__file__).resolve().parent.parent / "configs" / "organelle_like_regions.MpTak_v7.1.bed")
     p = pathlib.Path(raw) if raw else None
-    return p if p is not None and p.is_file() else None
+    if p is not None and not p.is_file():
+        if raw not in _WARNED_BLACKLISTS:      # once per process per path
+            _WARNED_BLACKLISTS.add(raw)
+            log.warning("ZENIGOKE_BLACKLIST=%s is not a file; blacklist filtering is DISABLED", raw)
+        return None
+    return p
 
 
 def _cache_dir() -> pathlib.Path:
@@ -112,9 +122,19 @@ def _filtered(path: pathlib.Path) -> pathlib.Path:
     if not out.exists():
         res = subprocess.run(["bedtools", "intersect", "-v", "-a", str(path), "-b", str(bl)],
                              check=True, capture_output=True, timeout=60)
-        tmp = out.with_suffix(".tmp")
-        tmp.write_bytes(res.stdout)
-        tmp.replace(out)
+        # `out` must only ever appear via an atomic rename of a complete file, and
+        # concurrent callers (threadpool) must not share a temp name.
+        fd, tmp_name = tempfile.mkstemp(dir=str(out.parent), prefix=f"{key}.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(res.stdout)
+            os.replace(tmp_name, out)
+        except BaseException:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
     return out
 
 
@@ -271,7 +291,7 @@ def _load_samples(strategies: list[str] | None) -> list[dict]:
 
 def _parse_bed(text: str) -> list[tuple[str, int, int]]:
     out = []
-    for ln in text.splitlines():
+    for lineno, ln in enumerate(text.splitlines(), 1):
         ln = ln.strip()
         if not ln or ln.startswith(("track", "#", "browser")):
             continue
@@ -279,9 +299,13 @@ def _parse_bed(text: str) -> list[tuple[str, int, int]]:
         if len(parts) < 3:
             continue
         try:
-            out.append((parts[0], int(parts[1]), int(parts[2])))
+            start, end = int(parts[1]), int(parts[2])
         except ValueError:
             continue
+        if start < 0 or end <= start:
+            raise ValueError(f"invalid BED coordinates on line {lineno}: {parts[0]}\t{parts[1]}\t{parts[2]} "
+                             "(need start >= 0 and end > start)")
+        out.append((parts[0], start, end))
     return out
 
 
