@@ -43,10 +43,12 @@ CREATE TABLE sample (
   status               TEXT NOT NULL,
   layout               TEXT,
   fastq_size           TEXT,
+  reads_raw            INTEGER,
   reads_filtered       INTEGER,
   reads_mapped         INTEGER,
   mapping_rate         REAL,
   duplication_rate     REAL,
+  usable_rate          REAL,
   elapsed_min          REAL,
   biosample_accession  TEXT,
   output_dir           TEXT NOT NULL
@@ -130,10 +132,12 @@ except Exception as _e:
 
     def _chipseq_fields_fn(row: List[str]) -> Dict[str, str]:  # fallback
         keys = [
-            "sample", "layout", "fastq_size", "reads_raw", "reads_filt",
-            "reads_mapped", "mapping_rate", "duplication_rate",
+            "sample", "layout", "fastq_size", "v1_placeholder", "reads_raw",
+            "reads_filt", "rate7", "rate8",
             "dedup_bam_size", "bedgraph_size", "bigwig_size",
             "peaks_q5", "peaks_q10", "peaks_q20", "elapsed_min",
+            "format", "aligned_reads", "duplicate_reads", "usable_reads",
+            "organelle_usable_reads", "nuclear_usable_reads",
         ]
         return {k: v for k, v in zip(keys, row)}
 
@@ -143,6 +147,7 @@ except Exception as _e:
             "mapping_rate", "methylation_rate", "cpg_coverage",
             "hmr_count", "pmd_count", "hypermr_count", "elapsed_min",
             "mean_cpg", "mean_chg", "mean_chh",
+            "format", "unique_rate", "organelle_pct", "nonconv",
         ]
         return {k: v for k, v in zip(keys, row)}
 
@@ -170,20 +175,42 @@ def _safe_int(v: Any) -> Optional[int]:
 # ---------------------------------------------------------------------------
 
 def parse_chipseq_stats(row: List[str]) -> Dict[str, Any]:
-    """Parse a 15-column ChIP/ATAC stats TSV row into a typed dict."""
-    fields = _chipseq_fields_fn(row)
-    return {
-        "layout": fields.get("layout"),
-        "fastq_size": fields.get("fastq_size"),
-        "reads_filtered": _safe_int(fields.get("reads_filt")),
-        "reads_mapped": _safe_int(fields.get("reads_mapped")),
-        "mapping_rate": _safe_float(fields.get("mapping_rate")),
-        "duplication_rate": _safe_float(fields.get("duplication_rate")),
-        "elapsed_min": _safe_float(fields.get("elapsed_min")),
-        "peaks_q5": _safe_int(fields.get("peaks_q5")),
-        "peaks_q10": _safe_int(fields.get("peaks_q10")),
-        "peaks_q20": _safe_int(fields.get("peaks_q20")),
+    """Parse a ChIP/ATAC stats.tsv row (legacy 15-col or zenigoke-v2 21-col)."""
+    f = _chipseq_fields_fn(row)
+    reads_filt = _safe_int(f.get("reads_filt"))
+    out: Dict[str, Any] = {
+        "layout": f.get("layout"),
+        "fastq_size": f.get("fastq_size"),
+        "reads_raw": _safe_int(f.get("reads_raw")),
+        "reads_filtered": reads_filt,
+        "elapsed_min": _safe_float(f.get("elapsed_min")),
+        "peaks_q5": _safe_int(f.get("peaks_q5")),
+        "peaks_q10": _safe_int(f.get("peaks_q10")),
+        "peaks_q20": _safe_int(f.get("peaks_q20")),
     }
+    if f.get("format") == "zenigoke-v2":
+        usable = _safe_int(f.get("usable_reads"))
+        out.update({
+            "format": "zenigoke-v2",
+            "mapping_rate": _safe_float(f.get("rate7")),
+            "duplication_rate": _safe_float(f.get("rate8")),
+            "reads_mapped": _safe_int(f.get("aligned_reads")),
+            "usable_reads": usable,
+            "organelle_usable_reads": _safe_int(f.get("organelle_usable_reads")),
+            "nuclear_usable_reads": _safe_int(f.get("nuclear_usable_reads")),
+            "usable_rate": (100.0 * usable / reads_filt) if usable and reads_filt else None,
+        })
+    else:
+        # Legacy upstream: col 7 is usable %, not an alignment rate; col 8 is
+        # 100 - col 7 and mixes unmapped with duplicates, so it is dropped.
+        out.update({
+            "format": "legacy",
+            "mapping_rate": None,
+            "duplication_rate": None,
+            "reads_mapped": None,
+            "usable_rate": _safe_float(f.get("rate7")),
+        })
+    return out
 
 
 def parse_bsseq_stats(row: List[str]) -> Dict[str, Any]:
@@ -197,6 +224,9 @@ def parse_bsseq_stats(row: List[str]) -> Dict[str, Any]:
         "mapping_rate": _safe_float(fields.get("mapping_rate")),
         "duplication_rate": None,  # not in bsseq stats
         "elapsed_min": _safe_float(fields.get("elapsed_min")),
+        "unique_rate": _safe_float(fields.get("unique_rate")) if fields.get("format") == "zenigoke-v2" else None,
+        "organelle_pct": _safe_float(fields.get("organelle_pct")) if fields.get("format") == "zenigoke-v2" else None,
+        "nonconv": _safe_float(fields.get("nonconv")) if fields.get("format") == "zenigoke-v2" else None,
         "mean_cpg": _safe_float(fields.get("mean_cpg")),
         "mean_chg": _safe_float(fields.get("mean_chg")),
         "mean_chh": _safe_float(fields.get("mean_chh")),
@@ -396,10 +426,12 @@ def collect_sample_rows(
             "status": status,
             "layout": None,
             "fastq_size": None,
+            "reads_raw": None,
             "reads_filtered": None,
             "reads_mapped": None,
             "mapping_rate": None,
             "duplication_rate": None,
+            "usable_rate": None,
             "elapsed_min": None,
             "biosample_accession": biosample,
             "output_dir": output_dir,
@@ -417,10 +449,12 @@ def collect_sample_rows(
                 row.update({
                     "layout": parsed.get("layout"),
                     "fastq_size": parsed.get("fastq_size"),
+                    "reads_raw": parsed.get("reads_raw"),
                     "reads_filtered": parsed.get("reads_filtered"),
                     "reads_mapped": parsed.get("reads_mapped"),
                     "mapping_rate": parsed.get("mapping_rate"),
                     "duplication_rate": parsed.get("duplication_rate"),
+                    "usable_rate": parsed.get("usable_rate"),
                     "elapsed_min": parsed.get("elapsed_min"),
                 })
                 row["_chipseq_stats"] = parsed
@@ -464,10 +498,10 @@ def populate_sample(conn: sqlite3.Connection, row: Dict[str, Any]) -> None:
         """
         INSERT OR REPLACE INTO sample(
           accession, library_strategy, status, layout,
-          fastq_size, reads_filtered, reads_mapped,
-          mapping_rate, duplication_rate, elapsed_min,
+          fastq_size, reads_raw, reads_filtered, reads_mapped,
+          mapping_rate, duplication_rate, usable_rate, elapsed_min,
           biosample_accession, output_dir
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             row["accession"],
@@ -475,10 +509,12 @@ def populate_sample(conn: sqlite3.Connection, row: Dict[str, Any]) -> None:
             row["status"],
             row.get("layout"),
             row.get("fastq_size"),
+            row.get("reads_raw"),
             row.get("reads_filtered"),
             row.get("reads_mapped"),
             row.get("mapping_rate"),
             row.get("duplication_rate"),
+            row.get("usable_rate"),
             row.get("elapsed_min"),
             row.get("biosample_accession"),
             row["output_dir"],

@@ -91,12 +91,17 @@ def test_populate_sample_writes_correct_row(tmp_path):
     status_dir.mkdir()
     (status_dir / "SRX1.ok").write_text("")
 
-    # 15-column ChIP-seq stats TSV (same layout as build_report._chipseq_stats_fields)
+    # 15-column legacy ChIP-seq stats TSV (same layout as
+    # build_report._chipseq_stats_fields): col 4 is the literal "0" placeholder,
+    # col 5 = reads before fastp, col 6 = after, col 7 = usable %.
     stats_dir = tmp_path / "output" / "chipseq" / "SRX1"
     _write(
         stats_dir / "SRX1.stats.tsv",
-        "SRX1\tPE\t1.2G\t10000000\t9500000\t9000000\t0.92\t0.11\t"
+        "SRX1\tPE\t1.2G\t0\t10000000\t9500000\t0.92\t0.08\t"
         "500M\t200M\t50M\t1200\t300\t80\t5.3\n",
+    )
+    parsed = bcd.parse_chipseq_stats(
+        bcd._read_stats_tsv(stats_dir / "SRX1.stats.tsv")
     )
 
     conn = _conn()
@@ -106,13 +111,15 @@ def test_populate_sample_writes_correct_row(tmp_path):
         "accession": "SRX1",
         "library_strategy": "ChIP-Seq",
         "status": "ok",
-        "layout": "PE",
-        "fastq_size": "1.2G",
-        "reads_filtered": 9500000,
-        "reads_mapped": 9000000,
-        "mapping_rate": 0.92,
-        "duplication_rate": 0.11,
-        "elapsed_min": 5.3,
+        "layout": parsed["layout"],
+        "fastq_size": parsed["fastq_size"],
+        "reads_raw": parsed["reads_raw"],
+        "reads_filtered": parsed["reads_filtered"],
+        "reads_mapped": parsed["reads_mapped"],
+        "mapping_rate": parsed["mapping_rate"],
+        "duplication_rate": parsed["duplication_rate"],
+        "usable_rate": parsed["usable_rate"],
+        "elapsed_min": parsed["elapsed_min"],
         "biosample_accession": "SAMN12345",
         "output_dir": str(stats_dir.parent),
     }
@@ -128,10 +135,13 @@ def test_populate_sample_writes_correct_row(tmp_path):
     assert result["status"] == "ok"
     assert result["layout"] == "PE"
     assert result["fastq_size"] == "1.2G"
+    assert result["reads_raw"] == 10000000
     assert result["reads_filtered"] == 9500000
-    assert result["reads_mapped"] == 9000000
-    assert abs(result["mapping_rate"] - 0.92) < 1e-6
-    assert abs(result["duplication_rate"] - 0.11) < 1e-6
+    # Legacy format has no alignment/duplication rate or mapped-read count.
+    assert result["reads_mapped"] is None
+    assert result["mapping_rate"] is None
+    assert result["duplication_rate"] is None
+    assert abs(result["usable_rate"] - 0.92) < 1e-6
     assert abs(result["elapsed_min"] - 5.3) < 1e-6
     assert result["biosample_accession"] == "SAMN12345"
     conn.close()
@@ -325,3 +335,42 @@ def test_anchor_query_returns_expected_rows():
     assert rows[0]["antibody_target"] == "H3K4me3"
 
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Test: legacy vs zenigoke-v2 stats parsing
+# ---------------------------------------------------------------------------
+
+LEGACY_CHIP = ["SRX1", "1", "3829082553", "0", "53268038", "52973920", "21.3", "78.7",
+               "1661569781", "365054360", "68579040", "1097", "772", "403", "21.48"]
+V2_CHIP = ["SRX2", "1", "3829082553", "0", "53268038", "52973920", "93.0", "20.0",
+           "1661569781", "365054360", "68579040", "1097", "772", "403", "21.48",
+           "zenigoke-v2", "49265000", "9853000", "39412000", "412000", "39000000"]
+
+
+def test_parse_chipseq_stats_legacy_vs_v2():
+    legacy = bcd.parse_chipseq_stats(LEGACY_CHIP)
+    assert legacy["format"] == "legacy"
+    assert legacy["reads_raw"] == 53268038
+    assert legacy["reads_filtered"] == 52973920
+    assert legacy["usable_rate"] == 21.3
+    assert legacy["mapping_rate"] is None
+    assert legacy["duplication_rate"] is None
+
+    v2 = bcd.parse_chipseq_stats(V2_CHIP)
+    assert v2["format"] == "zenigoke-v2"
+    assert v2["mapping_rate"] == 93.0
+    assert v2["duplication_rate"] == 20.0
+    assert v2["reads_mapped"] == 49265000
+    assert v2["nuclear_usable_reads"] == 39000000
+    assert abs(v2["usable_rate"] - 100 * 39412000 / 52973920) < 0.05
+
+
+def test_parse_bsseq_stats_v2_extra_columns():
+    base = ["SRX3", "1", "100", "50", "17561884", "73.6", "30.0", "5.0",
+            "22", "0", "3", "40", "0.3030", "0.1430", "0.0480"]
+    assert bcd.parse_bsseq_stats(base)["nonconv"] is None
+    v2 = bcd.parse_bsseq_stats(base + ["zenigoke-v2", "60.1", "45.2", "0.0207"])
+    assert v2["unique_rate"] == 60.1
+    assert v2["organelle_pct"] == 45.2
+    assert v2["nonconv"] == 0.0207

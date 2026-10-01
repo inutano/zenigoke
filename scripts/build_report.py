@@ -60,26 +60,31 @@ def _strategy_from_output(output_root: pathlib.Path, acc: str) -> str | None:
 
 
 def _chipseq_stats_fields(row: list[str]) -> dict[str, str]:
-    # Upstream pipeline-v2.sh stats.tsv is 15 contiguous columns. The plan's
-    # original key list missed the `reads_mapped` count between `reads_filt`
-    # and `mapping_rate`, which made every column from `mapping_rate` onward
-    # land on the wrong key. Verified empirically against SRX29617444 stats.
+    # pipeline-v2.sh stats.tsv (verified against upstream Step 5):
+    #   col 4 is a literal "0" placeholder, col 5 = fastp reads before filtering,
+    #   col 6 = after filtering. Legacy (upstream) col 7 = usable % (post-dedup
+    #   mapped / filtered) and col 8 = 100 - col 7. zenigoke-v2 (local fork,
+    #   col 16 == "zenigoke-v2") redefines col 7/8 as alignment/duplication rate
+    #   and appends cols 17-21.
     keys = [
-        "sample", "layout", "fastq_size", "reads_raw", "reads_filt",
-        "reads_mapped", "mapping_rate", "duplication_rate",
+        "sample", "layout", "fastq_size", "v1_placeholder", "reads_raw",
+        "reads_filt", "rate7", "rate8",
         "dedup_bam_size", "bedgraph_size", "bigwig_size",
         "peaks_q5", "peaks_q10", "peaks_q20", "elapsed_min",
+        "format", "aligned_reads", "duplicate_reads", "usable_reads",
+        "organelle_usable_reads", "nuclear_usable_reads",
     ]
     return {k: v for k, v in zip(keys, row)}
 
 
 def _bsseq_stats_fields(row: list[str]) -> dict[str, str]:
-    # Upstream 11 columns + our 3 extended columns (MEAN_CPG/CHG/CHH).
+    # Fork cols 1-15 + zenigoke-v2 cols 16-19.
     keys = [
         "sample", "layout", "fastq_size", "dedup_bam_size", "read_count",
         "mapping_rate", "methylation_rate", "cpg_coverage",
         "hmr_count", "pmd_count", "hypermr_count", "elapsed_min",
         "mean_cpg", "mean_chg", "mean_chh",
+        "format", "unique_rate", "organelle_pct", "nonconv",
     ]
     return {k: v for k, v in zip(keys, row)}
 
@@ -219,7 +224,7 @@ def render_html(samples: list[dict[str, Any]]) -> str:
         parts.append(f"<h2>{_esc(strat)} ({len(ok_rows)} samples)</h2>")
         # Column set picked per strategy
         if strat in ("ChIP-Seq", "ATAC-Seq"):
-            cols = ["accession", "mapping_rate", "duplication_rate",
+            cols = ["accession", "rate7",
                     "peaks_q5", "peaks_q10", "peaks_q20",
                     "antibody_target", "tissue", "developmental_stage",
                     "genotype_strain", "elapsed_min"]
