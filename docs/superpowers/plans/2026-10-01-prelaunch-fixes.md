@@ -56,7 +56,9 @@
 | `report/assets/matrix.js`, `report/assets/enrichment.js` | modify | use `igv.js` |
 | `scripts/igv_url_helper.py` | modify | peaks as bigBed |
 | `scripts/api_enrichment.py` | modify | blacklist filtering of user BED and peak files |
-| `deploy/aws/02-sync-data.sh` | modify | drop `--size-only`; also upload `configs/organelle_like_regions…bed` |
+| `deploy/aws/02-sync-data.sh` | modify | drop `--size-only`; `--dryrun` / `--delete`; also upload `configs/organelle_like_regions…bed` |
+| `deploy/aws/04-ec2-bootstrap.sh` | modify | peaks `--delete`, DB refresh, enrichment cache dir, restart |
+| `scripts/cpg_coverage.py` | create | CpG ≥5× coverage of v2 BS outputs (`docs/qc/bsseq-v2-cpgcov.tsv`) |
 | `tests/test_qc_flags.py`, `tests/test_igv_js.py`, `tests/js/igv.test.js` | create | new tests |
 | `tests/test_build_catalog_db.py`, `tests/test_build_report.py`, `tests/test_build_catalog_pages.py`, `tests/test_api_enrichment.py` | modify | updated/added tests |
 
@@ -1367,9 +1369,16 @@ def _blacklist_bp(chrom_sizes: dict[str, int]) -> int:
 
 ### Task 12: Swap in the re-run outputs and rebuild (after Task 5 completes)
 
-- [ ] **Step 1: Check completeness** — `ls /data1/zenigoke/status-v2/*.ok | wc -l` = 157 (or list `.failed` and debug them before continuing).
-- [ ] **Step 2: Compare v1 vs v2** — script in scratch: for every accession print v1 displayed rate, v2 alignment rate (col 7 / BS col 6), v2 dup, BS means and non-conversion. Expected: ChIP/ATAC v2 alignment ≥ QC TSV `aligned_pct` − 2 pt (organelles now map); BS rates close to `sub_R_plus_organelle`; SRX2613745/731 CpG ≈ 0.30/0.43. Investigate anything outside ±5 pt.
-- [ ] **Step 3: Swap** (reversible)
+- [ ] **Step 1: Check completeness** — `ls /data1/zenigoke/status-v2/*.ok | wc -l` = 157 (or list `.failed` and debug them before continuing). The single-file "PAIRED" runs must have downloaded through the md5-checked path: `for a in $(seq 29617445 29617455); do grep -H "md5 ok:" /data1/zenigoke/logs-v2/SRX$a.log || echo "SRX$a: no md5 line"; done` prints an `md5 ok:` line for each, and `ls /data1/zenigoke/status-v2/SRX29617452.ok` exists.
+- [ ] **Step 2: CpG coverage of the v2 BS outputs** (before the rebuild; the catalog never uses the 2026-10-01 TSV coverage for v2 rows):
+
+```bash
+PYTHONPATH=/data1/zenigoke/tmp/qc-20261001-bs/pylib \
+  python3 scripts/cpg_coverage.py --output-root /data1/zenigoke/output-v2 --out docs/qc/bsseq-v2-cpgcov.tsv
+wc -l docs/qc/bsseq-v2-cpgcov.tsv    # 32 (header + 31 BS samples)
+```
+- [ ] **Step 3: Compare v1 vs v2** — script in scratch: for every accession print v1 displayed rate, v2 alignment rate (col 7 / BS col 6), v2 dup, BS means, and side by side: organelle % (TSV `organelle_pct` / BS `pct_reads_chrC` vs v2 dedup share, ChIP col 20 / col 19, BS col 18), non-conversion (TSV `nonconv_chrC_CHH` vs v2 BS col 19) and CpG ≥5× (TSV `frac_cpg_cov_ge5` vs `docs/qc/bsseq-v2-cpgcov.tsv`). Expected: ChIP/ATAC v2 alignment ≥ QC TSV `aligned_pct` − 2 pt (organelles now map); the dedup organelle share is lower than the TSV value for high-duplication samples (different basis: the flag keeps the TSV value); BS rates close to `sub_R_plus_organelle`; SRX2613745/731 CpG ≈ 0.30/0.43 and much higher CpG coverage. Investigate anything outside ±5 pt that the basis change does not explain.
+- [ ] **Step 4: Swap** (reversible)
 
 ```bash
 cd /data1/zenigoke
@@ -1377,13 +1386,14 @@ mv output output-v1 && mv output-v2 output
 mv status status-v1 && mv status-v2 status
 mv logs logs-v1 && mv logs-v2 logs
 ```
-- [ ] **Step 4: Rebuild** — `python3 scripts/build-catalog-db.py && python3 scripts/build-catalog-pages.py`; `metrics_source` should read `pipeline+subsample` for all ok rows; re-check flag counts and spot-check 5 sample pages.
-- [ ] **Step 5: Docs** — Methods page (Task 9 text): reference now "MpTak v7.1 + chloroplast AP025455.1 + mitochondrion AP025456.1 (outputs nuclear-only)", ChIP/ATAC "local fork `pipeline-v2-plant.sh`", BS "`abismal -R`"; replace the "Until the 2026-10 re-analysis…" limitation with one stating peaks overlapping 1,278 NUPT/NUMT-like regions are removed. Update `SESSION-HANDOFF.md` (phase table + where things live) and the summary HTML §4 status. Remove `--size-only` from `deploy/aws/02-sync-data.sh` (same-size changed files would be skipped) and add an upload of `configs/organelle_like_regions.MpTak_v7.1.bed` to `s3://…/references/MpTak_v7.1/`.
-- [ ] **Step 6: Commit** — `git commit -am "rerun: swap in organelle-aware outputs; docs"`
+- [ ] **Step 5: Rebuild** — `python3 scripts/build-catalog-db.py && python3 scripts/build-catalog-pages.py` (no "no CpG >=5x coverage" warnings); `metrics_source` should read `pipeline+subsample` for all ok rows; re-check flag counts against Step 3 (organelle WARNs must not drop: the flag still uses the TSV basis) and spot-check 5 sample pages, including the QC-card note (it names only the values still taken from the 2026-10-01 investigation) and "removed by blacklist" for peaks in organelle-like regions.
+- [ ] **Step 6: Docs** — Methods page (Task 9 text): reference now "MpTak v7.1 + chloroplast AP025455.1 + mitochondrion AP025456.1 (outputs nuclear-only)", ChIP/ATAC "local fork `pipeline-v2-plant.sh`", BS "`abismal -R`"; replace the "Until the 2026-10 re-analysis…" limitation with one stating peaks overlapping 1,278 NUPT/NUMT-like regions are removed. Update `SESSION-HANDOFF.md` (phase table + where things live) and the summary HTML §4 status. (`deploy/aws/02-sync-data.sh` already has no `--size-only`, uploads the blacklist BED and takes `--dryrun` / `--delete`.)
+- [ ] **Step 7: Commit** — `git add docs/qc/bsseq-v2-cpgcov.tsv && git commit -am "rerun: swap in organelle-aware outputs; docs"`
 
 ### Task 13: Deploy (only after the owner confirms)
 
-- [ ] `bash deploy/aws/02-sync-data.sh` (profile `chiba-dsc`; ~40 GB) — uploads outputs + DB.
+- [ ] **Sync, dry run first** (profile `chiba-dsc`): `bash deploy/aws/02-sync-data.sh --dryrun --delete` and read the delete list (expected: only v1 files the v2 run no longer writes, e.g. `.NN.bb` / `.05_peaks.narrowPeak` of inputs/IgGs whose peaks were all blacklisted); then `bash deploy/aws/02-sync-data.sh --delete` (~40 GB) — uploads outputs, DB and the blacklist BED. The DB must be on S3 before the merge: the Pages workflow builds from it.
+- [ ] **Local check before merging** (merging deploys Pages): the owner opens a local build (`python3 scripts/server.py`) and sends a matrix selection and an enrichment top-10 to real IGV desktop; tracks load on the GenArk genome with "q < 1e-10" peak track names.
 - [ ] Merge `prelaunch-fixes` → `main` and push (Pages workflow rebuilds from the S3 DB).
-- [ ] EC2 (`zenigoke.inutano.com`): `git pull`, re-sync peaks from S3, restart `zenigoke.service`; verify `POST /api/enrichment` on a known BED.
-- [ ] Verify live: a sample page shows QC card; matrix "Send to IGV" against real IGV desktop loads tracks on the GenArk genome (owner checks, since IGV desktop is not available here).
+- [ ] **EC2** (`zenigoke.inutano.com`): re-run `bash deploy/aws/04-ec2-bootstrap.sh` — pulls the code, mirrors peaks with `--delete`, refreshes `db/kknmsmd.db`, creates `/var/cache/zenigoke-enrich` and sets `ZENIGOKE_ENRICH_CACHE`, restarts `zenigoke.service`. Verify `POST /api/enrichment` on a known BED (response includes `n_user_regions_excluded`).
+- [ ] Verify live: a sample page shows the QC card; matrix "Send to IGV" against real IGV desktop loads tracks on the GenArk genome (owner checks, since IGV desktop is not available here).
