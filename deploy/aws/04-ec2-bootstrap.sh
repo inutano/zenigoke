@@ -28,13 +28,16 @@ sudo apt-get update -qq
 sudo apt-get install -y \
   python3-pip python3-scipy bedtools git awscli \
   debian-keyring debian-archive-keyring apt-transport-https curl
-# caddy from official repo
+# caddy from official repo. gpg --batch --yes: on a re-run the keyring exists and
+# plain gpg would ask to overwrite it on /dev/tty (no tty here -> abort).
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | \
-  sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | \
   sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt-get update -qq
-sudo apt-get install -y caddy
+# --force-confold: this script overwrites /etc/caddy/Caddyfile (a package conffile);
+# when a re-run upgrades caddy, keep it rather than stopping at dpkg's conffile prompt.
+sudo apt-get install -y -o Dpkg::Options::=--force-confold caddy
 
 echo "== cloning repo =="
 cd "$HOME"
@@ -66,8 +69,15 @@ aws s3 cp "s3://$BUCKET/references/MpTak_v7.1/chrom.sizes" \
 echo "== enrichment cache dir =="
 # Blacklist-filtered peak files are cached here; /var/cache survives reboots
 # (unlike the /tmp default). Owned by the service user (this user; see zenigoke.service).
-ENRICH_CACHE=/var/cache/zenigoke-enrich
+ENRICH_CACHE="${ZENIGOKE_ENRICH_CACHE:-/var/cache/zenigoke-enrich}"
 sudo install -d -m 0755 -o "$(id -un)" -g "$(id -gn)" "$ENRICH_CACHE"
+# Entries are keyed by peak path + mtime, so peaks removed or replaced by the
+# --delete sync above would leave orphans forever: clear them on every refresh.
+# The service restart below drops its in-memory copy of the same cache. Empty the
+# directory (not remove it) so a request in flight never finds it missing.
+if [ -d "$ENRICH_CACHE/blacklisted" ]; then
+  find "$ENRICH_CACHE/blacklisted" -mindepth 1 -delete
+fi
 
 echo "== writing /etc/zenigoke.env =="
 sudo tee /etc/zenigoke.env > /dev/null <<EOF
