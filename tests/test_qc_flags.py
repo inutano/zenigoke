@@ -107,3 +107,45 @@ def test_reproduces_investigation_flags():
         m = qc_flags.bs_metrics_from_tsv(r)
         assert qc_flags.bs_flag(m)[0] == r["qc_flag"], r["accession"]
     assert n_chip > 0 and n_bs > 0, "regression test iterated no rows"
+
+
+def test_reason_numbers_keep_one_decimal():
+    """A value just under a threshold must not read as e.g. '70% < 70%'."""
+    reasons = lambda m: qc_flags.chip_flag(m)[1]  # noqa: E731
+    assert "alignment rate 69.6% < 70%" in reasons({**CHIP_OK, "aligned_pct": 69.6})
+    assert "alignment rate 29.6% < 30%" in reasons({**CHIP_OK, "aligned_pct": 29.6})
+    assert "duplication 79.6% ≥ 50%" in reasons({**CHIP_OK, "dup_pct": 79.6})
+    assert "duplication 80.0% ≥ 80%" in reasons({**CHIP_OK, "dup_pct": 80})
+    assert "organelle reads 20.0%" in reasons({**CHIP_OK, "organelle_pct": 20})
+    assert ("non-Marchantia DNA bacterial-like 8.5%, human 1.5%"
+            in reasons({**CHIP_OK, "human_pct": 1.5, "bacterial_pct": 8.5}))
+    assert ("25.4% of peaks in organelle-like (NUPT/NUMT) regions"
+            in reasons({**CHIP_OK, "peaks_in_organelle_like_pct": 25.4}))
+    assert "non-Marchantia reads 50.0%" in qc_flags.bs_flag({**BS_OK, "foreign_pct": 50})[1]
+
+
+def test_chip_organelle_dedup_share_flags_only_without_subsample_value():
+    no_sub = {k: v for k, v in CHIP_OK.items() if k != "organelle_pct"}
+    flag, reasons, _ = qc_flags.chip_flag({**no_sub, "organelle_dedup_pct": 20})
+    assert flag == "WARN"
+    assert "organelle share of deduplicated reads 20.0%" in reasons
+    assert qc_flags.chip_flag({**no_sub, "organelle_dedup_pct": 19.9})[0] == "PASS"
+    # the subsample value (fastp-passed basis) wins whenever it is present
+    assert qc_flags.chip_flag({**CHIP_OK, "organelle_pct": 2, "organelle_dedup_pct": 35})[0] == "PASS"
+    assert qc_flags.chip_flag({**CHIP_OK, "organelle_pct": 61, "organelle_dedup_pct": 5})[0] == "WARN"
+    # the dedup share alone is a metric (not NA)
+    assert qc_flags.chip_flag({"status": "ok", "organelle_dedup_pct": 5})[0] == "PASS"
+
+
+def test_reason_numbers_never_round_onto_a_strict_threshold():
+    """One decimal unless rounding would print the threshold itself ("70.0% < 70%")."""
+    chip = lambda m: qc_flags.chip_flag({**CHIP_OK, **m})[1]  # noqa: E731
+    bs = lambda m: qc_flags.bs_flag({**BS_OK, **m})[1]  # noqa: E731
+    assert "alignment rate 69.96% < 70%" in chip({"aligned_pct": 69.96})
+    assert "alignment rate 29.96% < 30%" in chip({"aligned_pct": 29.96})
+    assert "3.96M usable fragments < 4M" in chip({"usable_fragments": 3.96e6})
+    assert "0.999M usable fragments < 1M" in chip({"usable_fragments": 999_000})
+    assert "3.1M usable fragments < 4M" in chip({"usable_fragments": 3.14e6})
+    assert "only 4.96% of CpGs covered ≥5×" in bs({"frac_cpg_cov_ge5": 0.0496})
+    assert "non-conversion 2.004% > 2%" in bs({"nonconv": 0.02004})
+    assert "non-conversion 2.1% > 2%" in bs({"nonconv": 0.0207})

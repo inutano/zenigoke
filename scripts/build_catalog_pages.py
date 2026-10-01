@@ -22,7 +22,11 @@ import pathlib
 import re
 import shutil
 import sqlite3
+import sys
 from typing import Any, Optional
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import qc_flags  # noqa: E402  (shared QC display labels)
 
 # Strategy display names to URL slug mapping
 STRATEGY_SLUGS: dict[str, str] = {
@@ -99,6 +103,40 @@ def _aligned(s: dict) -> Optional[float]:
     """True alignment rate: sample_qc.aligned_pct, else the legacy sample.mapping_rate."""
     a = s.get("aligned_pct")
     return a if a is not None else s.get("mapping_rate")
+
+
+def _fmt_millions(x: Any) -> str:
+    """Format a count in millions (e.g. 3.23M), or em-dash."""
+    if x is None or x == "":
+        return "&mdash;"
+    try:
+        return f"{float(x) / 1e6:.2f}M"
+    except (ValueError, TypeError):
+        return _dash(x)
+
+
+# Of the 2026-10-01 TSV values, these were computed on the original (legacy)
+# pipeline run's outputs/logs rather than on the read subsample.
+_QC_FULL_RUN_LABELS = (qc_flags.CHIP_QC_LABELS["usable_fragments"],
+                       qc_flags.CHIP_QC_LABELS["peaks_in_organelle_like_pct"],
+                       qc_flags.BS_QC_LABELS["frac_cpg_cov_ge5"])
+
+
+def _qc_provenance_note(sample: dict) -> str:
+    """Name the displayed QC values that come from the 2026-10-01 investigation (none -> no note)."""
+    fields = [f for f in (sample.get("subsample_fields") or "").split(", ") if f]
+    sub = [f for f in fields if f not in _QC_FULL_RUN_LABELS]
+    full = [f for f in fields if f in _QC_FULL_RUN_LABELS]
+    # subsample sizes: ChIP/ATAC first 100k reads, BS first 250k reads (pairs)
+    size = "250k" if sample.get("library_strategy") == "Bisulfite-Seq" else "100k"
+    out = ""
+    if sub:
+        out += (f'<p class="note">Estimated from a {size}-read subsample (2026-10-01 QC investigation): '
+                f"{_esc(', '.join(sub))}.</p>\n")
+    if full:
+        out += ('<p class="note">Computed by the 2026-10-01 QC investigation from the original pipeline run: '
+                f"{_esc(', '.join(full))}.</p>\n")
+    return out
 
 
 def _fmt_min(x: Any, decimals: int = 1) -> str:
@@ -603,32 +641,38 @@ def render_sample(sample: dict) -> str:
     qc_rows: list[tuple[str, str]] = [("QC flag", _qc_pill(sample.get("qc_flag")))]
     if sample.get("qc_reasons"):
         qc_rows.append(("reasons", "<br>".join(_esc(r) for r in sample["qc_reasons"].split("; "))))
+    org_dedup = sample.get("organelle_dedup_pct")
     if strat != "Bisulfite-Seq":
+        L = qc_flags.CHIP_QC_LABELS
         dup = sample.get("dup_pct") if sample.get("dup_pct") is not None else sample.get("duplication_rate")
+        # zenigoke-v2 stats (metrics_source 'pipeline...') mean peaks were blacklist-filtered
+        v2 = (sample.get("metrics_source") or "").startswith("pipeline")
+        pov = sample.get("peaks_in_organelle_like_pct")
         qc_rows += [
-            ("alignment rate", _fmt_pct(_aligned(sample))),
-            ("duplication rate", _fmt_pct(dup)),
+            (L["aligned_pct"], _fmt_pct(_aligned(sample))),
+            (L["dup_pct"], _fmt_pct(dup)),
             ("usable reads (dedup, aligned) / trimmed", _fmt_pct(sample.get("usable_rate"))),
-            ("organelle reads", _fmt_pct(sample.get("organelle_pct"))),
-            ("non-Marchantia DNA", _fmt_pct(sample.get("foreign_pct"))),
-            ("peaks in organelle-like regions", _fmt_pct(sample.get("peaks_in_organelle_like_pct"))),
+            (L["usable_fragments"], _fmt_millions(sample.get("usable_fragments"))),
+        ]
+        if sample.get("organelle_pct") is not None or org_dedup is None:
+            qc_rows.append((L["organelle_pct"], _fmt_pct(sample.get("organelle_pct"))))
+        if org_dedup is not None:
+            qc_rows.append((qc_flags.ORGANELLE_DEDUP_LABEL, _fmt_pct(org_dedup)))
+        qc_rows += [
+            (L["foreign_pct"], _fmt_pct(sample.get("foreign_pct"))),
+            (L["peaks_in_organelle_like_pct"],
+             "removed by blacklist" if pov is None and v2 else _fmt_pct(pov)),
         ]
     else:
+        L = qc_flags.BS_QC_LABELS
         qc_rows += [
-            ("non-conversion (chloroplast CHH)", _fmt_pct(sample.get("nonconv_pct"))),
-            ("non-Marchantia reads", _fmt_pct(sample.get("foreign_pct"))),
+            (L["nonconv"], _fmt_pct(sample.get("nonconv_pct"))),
+            (L["foreign_pct"], _fmt_pct(sample.get("foreign_pct"))),
+            (L["frac_cpg_cov_ge5"], _fmt_frac_pct(sample.get("frac_cpg_cov_ge5"))),
         ]
-    qc_note = ""
-    metrics_source = sample.get("metrics_source") or ""
-    if metrics_source.startswith("subsample"):
-        qc_note = ('<p class="note">Alignment, duplication, organelle and contamination values are '
-                   "estimated from a 100k-read subsample (2026-10-01 QC investigation).</p>\n")
-    elif "subsample" in metrics_source:  # e.g. 'pipeline+subsample'
-        what = ("Non-conversion and non-Marchantia" if strat == "Bisulfite-Seq"
-                else "Organelle and non-Marchantia")
-        qc_note = (f'<p class="note">{what} values are estimated from a '
-                   "subsample (2026-10-01 QC investigation).</p>\n")
-    parts.append(_card("Quality Control", _kv_table(qc_rows) + qc_note))
+        if org_dedup is not None:
+            qc_rows.append((qc_flags.ORGANELLE_DEDUP_LABEL, _fmt_pct(org_dedup)))
+    parts.append(_card("Quality Control", _kv_table(qc_rows) + _qc_provenance_note(sample)))
 
     # Curated metadata card (Item 8: em-dash for empty cells)
     curation_rows = [
@@ -1265,7 +1309,7 @@ function _initBundle() {
   }
 
   document.getElementById('bundle-title').textContent = 'Bundle (' + accs.length + ' samples)';
-  document.getElementById('bundle-subtitle').textContent = tracks.length + ' tracks · q≤' + q;
+  document.getElementById('bundle-subtitle').textContent = tracks.length + ' tracks · q < ' + q;
   const tbody = document.querySelector('#tracks-table tbody');
   for (const t of tracks) {
     const row = document.createElement('tr');
@@ -1357,11 +1401,13 @@ def _load_samples(db_path: pathlib.Path) -> list[dict]:
             q.dup_pct,
             q.usable_fragments,
             q.organelle_pct,
+            q.organelle_dedup_pct,
             q.foreign_pct,
             q.peaks_in_organelle_like_pct,
             q.nonconv_pct,
             q.frac_cpg_cov_ge5,
-            q.metrics_source
+            q.metrics_source,
+            q.subsample_fields
         FROM sample s
         LEFT JOIN sample_qc q USING (accession)
         LEFT JOIN sample_curation c USING (accession)

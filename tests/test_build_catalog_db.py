@@ -457,10 +457,13 @@ def test_sample_qc_bs_v2_with_tsv_prefers_pipeline_values(tmp_path):
     assert "non-conversion 2.1% > 2%" in q["qc_reasons"]
     assert "wrong strand" not in q["qc_reasons"]
     assert q["nonconv_pct"] == pytest.approx(2.07)
-    assert q["organelle_pct"] == 45.2          # pipeline col 18, not TSV pct_reads_chrC (2.78)
+    assert q["organelle_pct"] == 2.78          # TSV pct_reads_chrC keeps its own basis...
+    assert q["organelle_dedup_pct"] == 45.2    # ...pipeline col 18 is stored separately
     assert q["foreign_pct"] == 15.0            # TSV unmapped (10) + bacteria (5)
-    assert q["frac_cpg_cov_ge5"] == 0.5        # TSV only
+    # the TSV CpG coverage was measured on the legacy bigWig: never used for a v2 row
+    assert q["frac_cpg_cov_ge5"] is None
     assert q["metrics_source"] == "pipeline+subsample"
+    assert q["subsample_fields"] == "non-Marchantia reads"
     assert q["peak_flag"] is None and q["aligned_pct"] is None
 
 
@@ -476,6 +479,9 @@ def test_sample_qc_bs_legacy_with_tsv_source_reflects_pipeline_means(tmp_path):
     # legacy stats have no nonconv/organelle_pct: those fall back to the TSV...
     assert q["nonconv_pct"] == pytest.approx(0.3)
     assert q["organelle_pct"] == 2.78
+    assert q["organelle_dedup_pct"] is None
+    assert q["frac_cpg_cov_ge5"] == 0.5
+    assert q["subsample_fields"] == "non-conversion (chloroplast CHH), non-Marchantia reads, CpGs covered ≥5×"
     # ...but the means used for the flag came from the pipeline, so the source says so
     assert q["metrics_source"] == "pipeline+subsample"
 
@@ -492,20 +498,24 @@ def test_sample_qc_bs_pipeline_only_source(tmp_path):
 def test_sample_qc_chip_pe_v2_with_tsv_prefers_pipeline_values(tmp_path):
     data_root, qc_dir = tmp_path / "data", tmp_path / "qc"
     _put_stats(data_root, "chipseq", "SRX9800313", V2_CHIP)   # layout "1" = PE
-    # TSV alone would FAIL (aligned 12.9) and flag NUPT peaks (30%); pipeline says clean
+    # TSV alone would FAIL (aligned 12.9) and flag NUPT peaks (30%, legacy peaks); pipeline says clean
     _write(qc_dir / "2026-10-01-chip-atlas-qc.tsv", CHIP_QC_HEADER +
-           "SRX9800313\tChIP-Seq\tok\t12.9\t90\t100000\t50\t0.2\t3\t3000\t30\tFAIL\tWARN\n")
+           "SRX9800313\tChIP-Seq\tok\t12.9\t90\t100000\t1.5\t0.2\t3\t3000\t30\tFAIL\tWARN\n")
     db = tmp_path / "k.db"
     bcd.build(data_root, tmp_path / "meta", db, qc_dir=qc_dir)
     q = _qc_db_row(db, "SRX9800313")
     assert q["qc_flag"] == "PASS", q["qc_reasons"]
     assert q["aligned_pct"] == 93.0 and q["dup_pct"] == 20.0
     assert q["usable_fragments"] == 19500000                    # nuclear usable 39.0M / 2 (PE)
-    assert q["organelle_pct"] == pytest.approx(100.0 * 412000 / 39412000)
+    assert q["organelle_pct"] == 1.5                            # TSV (fastp-passed basis) kept
+    assert q["organelle_dedup_pct"] == pytest.approx(100.0 * 412000 / 39412000)
     assert q["foreign_pct"] == pytest.approx(3.2)               # TSV human 0.2 + bacterial-like 3
     assert q["peak_flag"] == "OK"
-    assert q["peaks_in_organelle_like_pct"] == 0.0
+    # v2 peaks are blacklist-filtered: no measurement, and the TSV's legacy-peak value is not used
+    assert q["peaks_in_organelle_like_pct"] is None
+    assert "NUPT" not in (q["qc_reasons"] or "")
     assert q["metrics_source"] == "pipeline+subsample"
+    assert q["subsample_fields"] == "organelle reads, non-Marchantia DNA"
 
 
 def test_sample_qc_chip_se_v2_fragments_equal_reads(tmp_path):
@@ -534,7 +544,10 @@ def test_qc_row_v2_missing_pipeline_field_keeps_tsv_value():
     assert q["dup_pct"] == 20.0                # pipeline value present -> wins
     assert q["usable_fragments"] == 5600000
     assert q["organelle_pct"] == 1.5
+    assert q["organelle_dedup_pct"] is None
+    assert q["peaks_in_organelle_like_pct"] is None
     assert q["metrics_source"] == "pipeline+subsample"
+    assert q["subsample_fields"] == "alignment rate, usable fragments, organelle reads, non-Marchantia DNA"
 
 
 def test_qc_row_legacy_chip_source_is_subsample_only():
@@ -545,8 +558,13 @@ def test_qc_row_legacy_chip_source_is_subsample_only():
            "usable_fragments": "9000000", "organelle_pct": "1", "human_pct": "0",
            "other_unmapped_pct": "0", "peaks_q05": "100", "peaks_in_organelle_like_pct": "0"}
     assert bcd.qc_row(row, tsv)["metrics_source"] == "subsample-2026-10-01"
+    assert bcd.qc_row(row, tsv)["subsample_fields"] == (
+        "alignment rate, duplication rate, usable fragments, organelle reads, "
+        "non-Marchantia DNA, peaks in organelle-like regions")
+    assert bcd.qc_row(row, tsv)["peaks_in_organelle_like_pct"] == 0.0   # legacy: a real measurement
     assert bcd.qc_row(row, None)["metrics_source"] is None
     assert bcd.qc_row(row, None)["qc_flag"] == "NA"
+    assert bcd.qc_row(row, None)["subsample_fields"] is None
 
 
 def test_qc_row_foreign_pct_tolerates_blank_values():
@@ -569,6 +587,77 @@ def test_build_warns_when_qc_dir_has_no_tsvs(tmp_path, caplog):
     with caplog.at_level("WARNING"):
         bcd.build(data_root, tmp_path / "meta", tmp_path / "k2.db")      # no qc_dir: not an error
     assert not any("QC TSV" in r.getMessage() for r in caplog.records)
+
+
+def test_qc_row_v2_chip_without_tsv_flags_on_dedup_share():
+    """No subsample row (a future sample): the pipeline dedup share is flagged under its own label."""
+    row = {"library_strategy": "ATAC-Seq", "status": "ok", "layout": "1",
+           "_chipseq_stats": {"format": "zenigoke-v2", "mapping_rate": 99.6, "duplication_rate": 30.0,
+                              "nuclear_usable_reads": 30000000, "usable_reads": 40000000,
+                              "organelle_usable_reads": 10000000, "peaks_q5": 1000}}
+    q = bcd.qc_row(row, None)
+    assert q["organelle_pct"] is None
+    assert q["organelle_dedup_pct"] == 25.0
+    assert q["qc_flag"] == "WARN"
+    assert q["qc_reasons"] == "organelle share of deduplicated reads 25.0%"
+    assert q["subsample_fields"] is None
+    assert q["metrics_source"] == "pipeline"
+
+
+def test_qc_display_labels_have_no_commas():
+    """subsample_fields is a ', '-joined list of these labels."""
+    for label in list(bcd.CHIP_QC_LABELS.values()) + list(bcd.BS_QC_LABELS.values()):
+        assert "," not in label, label
+
+
+def _cpgcov_tsv(path, rows):
+    _write(path, "accession\tfrac_cpg_covered\tfrac_cpg_cov_ge5\tmedian_cpg_cov\n" +
+           "".join(f"{a}\t0.5\t{v}\t3\n" for a, v in rows))
+    return path
+
+
+def test_build_bs_cpg_coverage_precedence(tmp_path, caplog):
+    """v2 BS rows take CpG >=5x from the v2 cpgcov TSV (or None), never from the legacy-bigWig TSV;
+    legacy BS rows keep the 2026-10-01 TSV value."""
+    data_root, qc_dir = tmp_path / "data", tmp_path / "qc"
+    v2 = BS_LEGACY + ["zenigoke-v2", "60.1", "45.2", "0.005"]
+    _put_stats(data_root, "bsseq", "SRX9800320", v2)          # v2, in cpgcov TSV
+    _put_stats(data_root, "bsseq", "SRX9800321", v2)          # v2, not in cpgcov TSV
+    _put_stats(data_root, "bsseq", "SRX9800322", BS_LEGACY)   # legacy, in both TSVs
+    _write(qc_dir / "2026-10-01-bsseq-qc.tsv", BS_QC_HEADER +
+           "SRX9800320\t0.3\t0.1\t0.05\t2.78\t5\t10\t0.003\t0.5\tPASS\n"
+           "SRX9800321\t0.3\t0.1\t0.05\t2.78\t5\t10\t0.003\t0.01\tWARN\n"
+           "SRX9800322\t0.3\t0.1\t0.05\t2.78\t5\t10\t0.003\t0.02\tWARN\n")
+    cov = _cpgcov_tsv(tmp_path / "cpgcov.tsv", [("SRX9800320", "0.012"), ("SRX9800322", "0.9")])
+    db = tmp_path / "k.db"
+    with caplog.at_level("WARNING"):
+        bcd.build(data_root, tmp_path / "meta", db, qc_dir=qc_dir, cpgcov_tsv=cov)
+    a = _qc_db_row(db, "SRX9800320")
+    assert a["frac_cpg_cov_ge5"] == 0.012
+    assert a["qc_flag"] == "WARN" and "only 1.2% of CpGs covered ≥5×" in a["qc_reasons"]
+    assert "CpGs covered" not in (a["subsample_fields"] or "")
+    b = _qc_db_row(db, "SRX9800321")
+    assert b["frac_cpg_cov_ge5"] is None and b["qc_flag"] == "PASS"
+    assert any("SRX9800321" in r.getMessage() and "cpg_coverage" in r.getMessage() for r in caplog.records)
+    c = _qc_db_row(db, "SRX9800322")
+    assert c["frac_cpg_cov_ge5"] == 0.02 and c["qc_flag"] == "WARN"
+    assert "CpGs covered ≥5×" in c["subsample_fields"]
+
+
+def test_load_cpgcov_tsv(tmp_path):
+    assert bcd.load_cpgcov_tsv(None) == {}
+    assert bcd.load_cpgcov_tsv(tmp_path / "missing.tsv") == {}
+    p = _cpgcov_tsv(tmp_path / "c.tsv", [("SRX1", "0.25"), ("SRX2", "")])
+    assert bcd.load_cpgcov_tsv(p) == {"SRX1": 0.25, "SRX2": None}
+
+
+def test_cli_defaults_are_anchored_at_repo_root(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    repo = pathlib.Path(__file__).resolve().parent.parent
+    a = bcd._arg_parser().parse_args([])
+    assert pathlib.Path(a.qc_dir) == repo / "docs" / "qc"
+    assert pathlib.Path(a.curation_overrides) == repo / "configs" / "curation_overrides.tsv"
+    assert pathlib.Path(a.cpgcov_tsv) == repo / "docs" / "qc" / "bsseq-v2-cpgcov.tsv"
 
 
 # ---------------------------------------------------------------------------
