@@ -149,3 +149,22 @@ def test_reason_numbers_never_round_onto_a_strict_threshold():
     assert "only 4.96% of CpGs covered ≥5×" in bs({"frac_cpg_cov_ge5": 0.0496})
     assert "non-conversion 2.004% > 2%" in bs({"nonconv": 0.02004})
     assert "non-conversion 2.1% > 2%" in bs({"nonconv": 0.0207})
+
+
+def test_warn_reasons_never_print_the_fail_threshold():
+    """A WARN-range value must not read like the FAIL limit ("duplication 80.0% ≥ 50%")."""
+    chip = lambda m: qc_flags.chip_flag({**CHIP_OK, **m})  # noqa: E731
+    bs = lambda m: qc_flags.bs_flag({**BS_OK, **m})  # noqa: E731
+    flag, reasons, _ = chip({"dup_pct": 79.96})
+    assert flag == "WARN" and "duplication 79.96% ≥ 50%" in reasons
+    assert not any("80.0%" in r for r in reasons)
+    flag, reasons = bs({"nonconv": 0.0496})
+    assert flag == "WARN" and "non-conversion 4.96% > 2%" in reasons
+    assert not any("5.0%" in r for r in reasons)
+    # the FAIL side keeps its one decimal, and ordinary WARN values stay at one decimal
+    assert "duplication 80.0% ≥ 80%" in chip({"dup_pct": 80})[1]
+    assert "non-conversion 5.0% ≥ 5%" in bs({"nonconv": 0.05})[1]
+    assert "duplication 79.6% ≥ 50%" in chip({"dup_pct": 79.6})[1]
+    assert "non-conversion 4.5% > 2%" in bs({"nonconv": 0.045})[1]
+    # a value just under the WARN lower limit still avoids it (unchanged)
+    assert "non-conversion 2.004% > 2%" in bs({"nonconv": 0.02004})[1]

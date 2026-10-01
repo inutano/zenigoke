@@ -5,8 +5,8 @@ rules work on subsample estimates (docs/qc TSVs) and on zenigoke-v2 pipeline
 stats. A sample that completed but has no metrics at all gets "NA".
 
 Reason strings print rates with one decimal (more when rounding would print the
-limit of a strict test), so a value just under a threshold never reads like
-"70% < 70%".
+limit of a strict test, or the FAIL limit above a WARN-range value), so a value
+just under a threshold never reads like "70% < 70%" or "80.0% ≥ 50%".
 
 Organelle (ChIP/ATAC) has two bases: `organelle_pct` is the share of
 fastp-passed reads (2026-10-01 subsample) and is what the >= 20% rule was set
@@ -46,11 +46,15 @@ def _num(m: Dict[str, Any], k: str) -> Optional[float]:
         return None
 
 
-def _vs(x: float, limit: float) -> str:
-    """x with one decimal, or more when rounding would print the limit of a strict test."""
+def _vs(x: float, *limits: float) -> str:
+    """x with one decimal, or more when rounding would print one of `limits`.
+
+    Pass the limit of a strict test ("70% < 70%") and, for a WARN-range value, the
+    FAIL limit above it too, so a WARN never reads like a FAIL ("80.0% ≥ 50%").
+    """
     for d in range(1, 7):
         s = f"{x:.{d}f}"
-        if float(s) != limit:
+        if float(s) not in limits:
             return s
     return s
 
@@ -83,7 +87,7 @@ def chip_flag(m: Dict[str, Any]) -> Tuple[str, List[str], str]:
         if d >= 80:
             fails.append(f"duplication {d:.1f}% ≥ 80%")
         elif d >= 50:
-            warns.append(f"duplication {d:.1f}% ≥ 50%")
+            warns.append(f"duplication {_vs(d, 80)}% ≥ 50%")
     if frag is not None:
         if frag < 1e6:
             fails.append(f"{_vs(frag / 1e6, 1)}M usable fragments < 1M")
@@ -129,7 +133,7 @@ def bs_flag(m: Dict[str, Any]) -> Tuple[str, List[str]]:
         if nc >= 0.05:
             fails.append(f"non-conversion {nc * 100:.1f}% ≥ 5%")
         elif nc > 0.02:
-            warns.append(f"non-conversion {_vs(nc * 100, 2)}% > 2%")
+            warns.append(f"non-conversion {_vs(nc * 100, 2, 5)}% > 2%")
     if fo is not None and fo >= 50:
         warns.append(f"non-Marchantia reads {fo:.1f}%")
     if cov is not None and cov < 0.05:
