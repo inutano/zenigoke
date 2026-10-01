@@ -59,20 +59,77 @@ def _chrom_sizes_path() -> pathlib.Path:
     return pathlib.Path("/data1/zenigoke/references/MpTak_v7.1/chrom.sizes")
 
 
+def _chrom_sizes() -> dict[str, int]:
+    """Chromosome name -> length parsed from the chrom.sizes file ({} if absent)."""
+    sizes: dict[str, int] = {}
+    p = _chrom_sizes_path()
+    if not p.exists():
+        return sizes
+    for line in p.read_text().splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 2 and parts[1].isdigit():
+            sizes[parts[0]] = int(parts[1])
+    return sizes
+
+
 def _genome_bp() -> int:
     """Sum of chrom sizes; cached at module level once computed."""
     if hasattr(_genome_bp, "_cached"):
         return _genome_bp._cached
-    total = 0
-    p = _chrom_sizes_path()
-    if not p.exists():
+    sizes = _chrom_sizes()
+    if not sizes:
         return 0
-    for line in p.read_text().splitlines():
-        parts = line.strip().split()
-        if len(parts) >= 2 and parts[1].isdigit():
-            total += int(parts[1])
+    total = sum(sizes.values())
     _genome_bp._cached = total
     return total
+
+
+# ---------------------------------------------------------------------------
+# Blacklist (NUPT/NUMT-like regions): excluded from user BED and sample peaks
+# ---------------------------------------------------------------------------
+
+def _blacklist_path() -> pathlib.Path | None:
+    raw = os.getenv("ZENIGOKE_BLACKLIST")
+    if raw is None:
+        raw = str(pathlib.Path(__file__).resolve().parent.parent / "configs" / "organelle_like_regions.MpTak_v7.1.bed")
+    p = pathlib.Path(raw) if raw else None
+    return p if p is not None and p.is_file() else None
+
+
+def _cache_dir() -> pathlib.Path:
+    d = pathlib.Path(os.getenv("ZENIGOKE_ENRICH_CACHE", "/tmp/zenigoke-enrich")) / "blacklisted"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _filtered(path: pathlib.Path) -> pathlib.Path:
+    """Return `path` minus blacklist overlaps (cached by path + mtimes)."""
+    bl = _blacklist_path()
+    if bl is None:
+        return path
+    key = hashlib.sha256(f"{path}:{path.stat().st_mtime_ns}:{bl}:{bl.stat().st_mtime_ns}".encode()).hexdigest()[:24]
+    out = _cache_dir() / f"{key}.bed"
+    if not out.exists():
+        res = subprocess.run(["bedtools", "intersect", "-v", "-a", str(path), "-b", str(bl)],
+                             check=True, capture_output=True, timeout=60)
+        tmp = out.with_suffix(".tmp")
+        tmp.write_bytes(res.stdout)
+        tmp.replace(out)
+    return out
+
+
+def _blacklist_bp(chrom_sizes: dict[str, int]) -> int:
+    """Blacklisted bp clipped to the chromosomes being tested."""
+    bl = _blacklist_path()
+    if bl is None:
+        return 0
+    n = 0
+    for line in bl.read_text().splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 3 and parts[0] in chrom_sizes:
+            s, e = max(0, int(parts[1])), min(int(parts[2]), chrom_sizes[parts[0]])
+            n += max(0, e - s)
+    return n
 
 
 def _q_label(q: str) -> str:
@@ -116,6 +173,10 @@ def _score_one(args: tuple) -> dict | None:
     sample, q_cutoff, user_bed_path, n_user, genome_bp = args
     peak_path = _peak_file_for(sample, q_cutoff)
     if peak_path is None or not peak_path.exists():
+        return None
+    try:
+        peak_path = _filtered(peak_path)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     peak_bp = _total_peak_bp(peak_path)
     if peak_bp == 0 or genome_bp == 0:
@@ -176,6 +237,9 @@ def _hash_payload(req: EnrichmentRequest) -> str:
     h.update(req.q_cutoff.encode())
     if req.filter and req.filter.strategy:
         h.update(",".join(sorted(req.filter.strategy)).encode())
+    bl = _blacklist_path()
+    if bl is not None:
+        h.update(f"{bl}:{bl.stat().st_mtime_ns}".encode())
     return h.hexdigest()[:16]
 
 
@@ -234,16 +298,27 @@ def run_enrichment(req: EnrichmentRequest) -> dict:
 
     strategies = req.filter.strategy if (req.filter and req.filter.strategy) else None
     samples = _load_samples(strategies)
+    # Genome size excludes blacklisted bp so p_null matches the filtered peaks.
     genome_bp = _genome_bp()
+    if genome_bp:
+        genome_bp = max(0, genome_bp - _blacklist_bp(_chrom_sizes()))
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".bed", delete=False) as tf:
         for chrom, start, end in regions:
             tf.write(f"{chrom}\t{start}\t{end}\n")
-        user_bed_path = tf.name
+        raw_bed_path = tf.name
 
+    filtered_bed_path = raw_bed_path
     try:
-        n_user = len(regions)
-        args = [(s, req.q_cutoff, user_bed_path, n_user, genome_bp) for s in samples]
+        try:
+            filtered_bed_path = str(_filtered(pathlib.Path(raw_bed_path)))
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            raise ValueError("could not process BED regions (check coordinates)")
+        with open(filtered_bed_path) as fh:
+            n_user = sum(1 for ln in fh if len(ln.rstrip("\n").split("\t")) >= 3)
+        if n_user == 0:
+            raise ValueError("no BED regions remain after excluding blacklisted (organelle-like) regions")
+        args = [(s, req.q_cutoff, filtered_bed_path, n_user, genome_bp) for s in samples]
         results: list[dict] = []
         # Sequential is fine for small catalogs; switch to ProcessPoolExecutor
         # for >50 samples (test env stays sequential to avoid pickling fastapi).
@@ -252,10 +327,13 @@ def run_enrichment(req: EnrichmentRequest) -> dict:
             if r is not None:
                 results.append(r)
     finally:
-        try:
-            os.unlink(user_bed_path)
-        except OSError:
-            pass
+        # The filtered copy of a per-request temp file is never reused; drop it
+        # so the blacklist cache only accumulates sample peak files.
+        for pth in {raw_bed_path, filtered_bed_path}:
+            try:
+                os.unlink(pth)
+            except OSError:
+                pass
 
     # BH correction
     if results:

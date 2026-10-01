@@ -57,6 +57,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("ZENIGOKE_BUNDLES_DIR", str(tmp_path / "bundles"))
     monkeypatch.setenv("ZENIGOKE_PEAKS_DIR", str(peaks_dir))
     monkeypatch.setenv("ZENIGOKE_CHROM_SIZES", str(chrom_sizes))
+    monkeypatch.setenv("ZENIGOKE_BLACKLIST", "")
+    monkeypatch.setenv("ZENIGOKE_ENRICH_CACHE", str(tmp_path / "ecache"))
     for mod in [m for m in list(sys.modules) if m.startswith(("server", "api_"))]:
         del sys.modules[mod]
     from server import app
@@ -107,3 +109,58 @@ def test_enrichment_cache_hit_idempotent(client):
     r1 = client.post("/api/enrichment", json=payload).json()
     r2 = client.post("/api/enrichment", json=payload).json()
     assert r1["results"] == r2["results"]
+
+
+@pytest.fixture
+def client_bl(tmp_path, monkeypatch):
+    db, peaks_dir, chrom_sizes = _build_fixture(tmp_path)
+    bl = tmp_path / "blacklist.bed"
+    bl.write_text("chr1\t100\t200\n")          # covers user region 120-180 and part of SRX_A/SRX_B peaks
+    for k, v in {"ZENIGOKE_DB_PATH": db, "ZENIGOKE_REPORT_DIR": tmp_path,
+                 "ZENIGOKE_BUNDLES_DIR": tmp_path / "bundles", "ZENIGOKE_PEAKS_DIR": peaks_dir,
+                 "ZENIGOKE_CHROM_SIZES": chrom_sizes, "ZENIGOKE_BLACKLIST": bl,
+                 "ZENIGOKE_ENRICH_CACHE": tmp_path / "ecache"}.items():
+        monkeypatch.setenv(k, str(v))
+    (tmp_path / "bundles").mkdir()
+    for mod in [m for m in list(sys.modules) if m.startswith(("server", "api_"))]:
+        del sys.modules[mod]
+    from server import app
+    return TestClient(app)
+
+
+def test_enrichment_excludes_blacklisted_regions(client_bl):
+    r = client_bl.post("/api/enrichment", json={
+        "regions_bed": "chr1\t120\t180\nchr1\t910\t950\n",
+        "q_cutoff": "1e-10",
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["n_user_regions"] == 1          # 120-180 is inside the blacklist
+    top = body["results"][0]
+    assert top["accession"] == "SRX_A"
+    assert top["overlap_count"] == 1            # only 910-950 vs SRX_A 900-1100
+
+
+def test_enrichment_blacklist_filters_peaks_and_genome(client_bl):
+    """Blacklist hits drop whole peaks and shrink the genome used for p_null."""
+    r = client_bl.post("/api/enrichment", json={
+        "regions_bed": "chr1\t910\t950\n", "q_cutoff": "1e-10"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["genome_bp"] == 10000 - 100                 # chrom.sizes minus blacklist bp
+    srx_a = next(x for x in body["results"] if x["accession"] == "SRX_A")
+    # SRX_A peak 100-300 overlaps the blacklist and is removed; 500-700 + 900-1100 remain
+    assert srx_a["p_null"] == pytest.approx(400 / 9900)
+
+
+def test_enrichment_all_regions_blacklisted_is_400(client_bl):
+    r = client_bl.post("/api/enrichment", json={
+        "regions_bed": "chr1\t120\t180\nchr1\t150\t160\n", "q_cutoff": "1e-10"})
+    assert r.status_code == 400
+    assert "blacklist" in r.json()["detail"]
+
+
+def test_enrichment_malformed_coordinates_are_400_not_500(client_bl):
+    r = client_bl.post("/api/enrichment", json={
+        "regions_bed": "chr1\t500\t400\n", "q_cutoff": "1e-10"})
+    assert r.status_code == 400
