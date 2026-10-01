@@ -5,7 +5,7 @@
 # FORK of: chip-atlas-pipeline-v2/scripts/pipeline-v2-bs.sh
 # Fork date: 2026-04-24
 #
-# Changes from upstream (two functional, one output extension):
+# Changes from upstream:
 #   1. dnmtools counts: -cpg-only flag removed → counts.tsv covers CpG + CHG + CHH.
 #   2. Step 3 replaced: per-context fan-out instead of single-context parallel calls.
 #      CpG: sym → hmr + hypermr + pmd + BigWig pair
@@ -13,6 +13,10 @@
 #      CHH: BigWig pair only (HMR/hyperMR unreliable at plant-typical low coverage)
 #   3. Stats TSV: three new columns appended (mean_cpg, mean_chg, mean_chh) —
 #      arithmetic mean of meth_fraction (col 5) across sites with coverage > 0.
+#   4. (2026-10-01) abismal -R (random/PBAT-tolerant; rescues R1/R2-swapped runs,
+#      ≤0.3 pt change on directional data); counts restricted to --chrom-sizes
+#      sequences, chrC CHH used as the non-conversion estimate; CPG_COUNTS for
+#      MpTak_v7.1; stats cols 16-19.
 #
 # Everything else (container, variable names, fastp/fifo logic, Steps 0-2) is
 # preserved verbatim from upstream.
@@ -109,6 +113,7 @@ declare -A CPG_COUNTS=(
   [ce11]=6263050
   [dm6]=11787346
   [sacCer3]=710598
+  [MpTak_v7.1]=20705802   # 10,352,901 CG dinucleotides x 2 strands, nuclear
 )
 CPG_COUNT="${CPG_COUNTS[$GENOME]:-0}"
 if [ "$CPG_COUNT" -eq 0 ]; then
@@ -162,6 +167,7 @@ if [ "$IS_PAIRED" = true ]; then
   dnmtools abismal \
       -i "$ABISMAL_IDX" \
       -t "$THREADS" \
+      -R \
       -B \
       -o "$WORK/mapped.bam" \
       -s "$WORK/abismal.stats" \
@@ -172,6 +178,7 @@ else
   dnmtools abismal \
       -i "$ABISMAL_IDX" \
       -t "$THREADS" \
+      -R \
       -B \
       -o "$WORK/mapped.bam" \
       -s "$WORK/abismal.stats" \
@@ -229,7 +236,19 @@ dnmtools counts \
     -t "$THREADS" \
     -c "$GENOME_FA" \
     "$DEDUP_BAM" \
-  | awk -F'\t' -v OFS='\t' '$6 > 0' > "$WORK/counts.tsv"
+  | awk -F'\t' -v OFS='\t' '$6 > 0' > "$WORK/counts.all.tsv"
+
+# Non-conversion: coverage-weighted CHH methylation on the chloroplast
+# (unmethylated in vivo). Then keep nuclear sequences only.
+NONCONV=$(awk -F'\t' '$1=="chrC" && $4=="CHH" {m+=$5*$6; n+=$6}
+  END {if (n>0) printf "%.4f", m/n; else print "NA"}' "$WORK/counts.all.tsv")
+awk -F'\t' 'NR==FNR {keep[$1]=1; next} ($1 in keep)' "$CHROM_SIZES" "$WORK/counts.all.tsv" \
+  > "$WORK/counts.tsv"
+rm -f "$WORK/counts.all.tsv"
+ORG_PCT=$(samtools view "$DEDUP_BAM" \
+  | awk -F'\t' 'NR==FNR {keep[$1]=1; next} {n++; if (!($3 in keep)) o++}
+      END {if (n>0) printf "%.2f", o/n*100; else print "0"}' "$CHROM_SIZES" -)
+log "  non-conversion (chrC CHH)=$NONCONV  non-nuclear reads=${ORG_PCT}%"
 
 # Capture dedup BAM size for stats, then delete
 DEDUP_BAM_SIZE=$(wc -c < "$DEDUP_BAM" 2>/dev/null || echo 0)
@@ -381,6 +400,7 @@ else
   READ_COUNT=$(grep "total_reads:" "$WORK/abismal.stats" | head -1 | awk '{print $2}')
 fi
 MAP_RATE=$(grep "percent_mapped:" "$WORK/abismal.stats" | head -1 | awk '{print $2}')
+PCT_UNIQUE=$(grep "percent_unique:" "$WORK/abismal.stats" | head -1 | awk '{print $2}' || true)
 
 # Methylation rate and CpG coverage from CpG-context sites only
 # (counts.tsv now includes CHG+CHH; CpG.tsv is pre-filtered)
@@ -411,17 +431,22 @@ MEAN_CHH=$(mean_meth "$WORK/counts.CHH.tsv")
 # FASTQ file size (bytes), sum for PE
 FASTQ_SIZE=$(du -sb "$FASTQ_FWD" ${FASTQ_REV:+"$FASTQ_REV"} 2>/dev/null | awk '{s+=$1} END {print s+0}')
 
-# Write stats TSV: 15 contiguous columns matching the report generator's key list.
+# Write stats TSV: 19 contiguous columns (cols 1-15 match the report generator's key list).
 # Cols 1-11:  sample layout fastq_size dedup_bam_size read_count mapping_rate
 #             meth_rate cpg_coverage hmr_count pmd_count hypermr_count
 # Col  12:    elapsed_min
 # Cols 13-15: mean_cpg mean_chg mean_chh  (plant-fork additions; replace the
 #             three empty padding cols that upstream BS-seq leaves here)
-printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+# Col  16:    pipeline tag "zenigoke-v2"
+# Col  17:    percent_unique (abismal; pairs for PE, reads for SE)
+# Col  18:    % of deduplicated reads on non-nuclear sequences (not in --chrom-sizes)
+# Col  19:    non-conversion rate (coverage-weighted chrC CHH methylation, fraction, or NA)
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "$SAMPLE_ID" "$LAYOUT_FLAG" "$FASTQ_SIZE" "$DEDUP_BAM_SIZE" \
   "$READ_COUNT" "$MAP_RATE" "$METH_RATE" "$CPG_COVERAGE" \
   "$HMR_N" "$PMD_N" "$HYPERMR_N" "$TOTAL_MIN" \
   "$MEAN_CPG" "$MEAN_CHG" "$MEAN_CHH" \
+  "zenigoke-v2" "${PCT_UNIQUE:-NA}" "$ORG_PCT" "$NONCONV" \
   > "$OUTDIR/${SAMPLE_ID}.stats.tsv"
 
 # Report summary
