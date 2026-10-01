@@ -61,17 +61,18 @@ def chip_flag(m: Dict[str, Any]) -> Tuple[str, List[str], str]:
         warns.append(f"organelle reads {org:.0f}%")
     any_metric = any(x is not None for x in (a, d, frag, org, hum, bac))
 
+    # peak_flag is reported separately; it does not change qc_flag on its own,
+    # but its reason is listed after the others.
     p05, pov = _num(m, "peaks_q05"), _num(m, "peaks_in_organelle_like_pct")
+    peak_reasons: List[str] = []
     if not p05:
         peak_flag = "NA"
     elif pov is not None and pov >= 20 and p05 >= 50:
         peak_flag = "WARN"
-        warns.append(f"{pov:.0f}% of peaks in organelle-like (NUPT/NUMT) regions")
+        peak_reasons.append(f"{pov:.0f}% of peaks in organelle-like (NUPT/NUMT) regions")
     else:
         peak_flag = "OK"
-    # peak_flag is reported separately; it does not change qc_flag on its own
-    flag = _worst(fails, [w for w in warns if "NUPT" not in w], any_metric)
-    return flag, fails + warns, peak_flag
+    return _worst(fails, warns, any_metric), fails + warns + peak_reasons, peak_flag
 
 
 def bs_flag(m: Dict[str, Any]) -> Tuple[str, List[str]]:

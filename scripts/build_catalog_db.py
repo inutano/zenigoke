@@ -668,30 +668,44 @@ def load_qc_tsvs(qc_dir: Optional[pathlib.Path]) -> Dict[str, Dict[str, str]]:
     return out
 
 
+def _metrics_source(pipeline_used: bool, has_tsv: bool) -> Optional[str]:
+    """Provenance of the numbers behind a sample's QC flag."""
+    if pipeline_used:
+        return "pipeline+subsample" if has_tsv else "pipeline"
+    return "subsample-2026-10-01" if has_tsv else None
+
+
 def qc_row(row: Dict[str, Any], tsv: Optional[Dict[str, str]]) -> Dict[str, Any]:
-    """Merge pipeline stats (preferred when zenigoke-v2) with subsample estimates."""
+    """Merge pipeline stats (preferred when zenigoke-v2) with subsample estimates.
+
+    Pipeline values override TSV values only when they are present (not None).
+    metrics_source records whether any pipeline-derived value was used.
+    """
     strat, status = row["library_strategy"], row["status"]
     if strat in ("ChIP-Seq", "ATAC-Seq"):
         m = qc_flags.chip_metrics_from_tsv(tsv) if tsv else {}
         m["status"] = status
         st = row.get("_chipseq_stats", {})
-        source = "subsample-2026-10-01" if tsv else None
+        pipeline_used = False
         if st.get("format") == "zenigoke-v2":
             pe = row.get("layout") == "1"
-            nuc = st.get("nuclear_usable_reads") or 0
-            usable = st.get("usable_reads") or 0
-            m.update({
+            nuc = st.get("nuclear_usable_reads")
+            usable = st.get("usable_reads")
+            org = st.get("organelle_usable_reads")
+            pipeline = {
                 "aligned_pct": st.get("mapping_rate"),
                 "dup_pct": st.get("duplication_rate"),
-                "usable_fragments": nuc / 2 if pe else nuc,
-                "organelle_pct": 100.0 * (st.get("organelle_usable_reads") or 0) / usable if usable else None,
+                "usable_fragments": None if nuc is None else (nuc / 2 if pe else nuc),
+                "organelle_pct": 100.0 * org / usable if org is not None and usable else None,
                 "peaks_q05": st.get("peaks_q5"),
                 "peaks_in_organelle_like_pct": 0.0,  # v2 peaks are blacklist-filtered
-            })
-            source = "pipeline+subsample" if tsv else "pipeline"
+            }
+            m.update({k: v for k, v in pipeline.items() if v is not None})
+            pipeline_used = True
+        source = _metrics_source(pipeline_used, tsv is not None)
         flag, reasons, peak_flag = qc_flags.chip_flag(m)
-        hum, bac = m.get("human_pct"), m.get("bacterial_pct")
-        foreign = None if hum in (None, "") and bac in (None, "") else float(hum or 0) + float(bac or 0)
+        hum, bac = _safe_float(m.get("human_pct")), _safe_float(m.get("bacterial_pct"))
+        foreign = None if hum is None and bac is None else (hum or 0.0) + (bac or 0.0)
         return {"qc_flag": flag, "qc_reasons": "; ".join(reasons), "peak_flag": peak_flag,
                 "aligned_pct": _safe_float(m.get("aligned_pct")), "dup_pct": _safe_float(m.get("dup_pct")),
                 "usable_fragments": _safe_int(_safe_float(m.get("usable_fragments"))),
@@ -701,23 +715,28 @@ def qc_row(row: Dict[str, Any], tsv: Optional[Dict[str, str]]) -> Dict[str, Any]
     m = qc_flags.bs_metrics_from_tsv(tsv) if tsv else {}
     m["status"] = status
     st = row.get("_bsseq_stats", {})
-    source = "subsample-2026-10-01" if tsv else None
-    for k in ("mean_cpg", "mean_chg", "mean_chh"):
+    pipeline_used = False
+    for k in ("mean_cpg", "mean_chg", "mean_chh", "nonconv"):
         if st.get(k) is not None:
             m[k] = st[k]
-    if st.get("nonconv") is not None:
-        m["nonconv"] = st["nonconv"]
-        source = "pipeline+subsample" if tsv else "pipeline"
+            pipeline_used = True
+    # organelle_pct has two bases: pipeline col 18 = % of dedup records on non-nuclear sequences;
+    # the TSV fallback pct_reads_chrC = % of subsample reads on chrC.
+    if st.get("organelle_pct") is not None:
+        organelle = _safe_float(st["organelle_pct"])
+        pipeline_used = True
+    else:
+        organelle = _safe_float((tsv or {}).get("pct_reads_chrC"))
     flag, reasons = qc_flags.bs_flag(m)
     nc = _safe_float(m.get("nonconv"))
     return {"qc_flag": flag, "qc_reasons": "; ".join(reasons), "peak_flag": None,
             "aligned_pct": None, "dup_pct": None, "usable_fragments": None,
-            "organelle_pct": _safe_float(st.get("organelle_pct")) if st.get("organelle_pct") is not None
-            else _safe_float((tsv or {}).get("pct_reads_chrC")),
+            "organelle_pct": organelle,
             "foreign_pct": _safe_float(m.get("foreign_pct")),
             "peaks_in_organelle_like_pct": None,
             "nonconv_pct": nc * 100 if nc is not None else None,
-            "frac_cpg_cov_ge5": _safe_float(m.get("frac_cpg_cov_ge5")), "metrics_source": source}
+            "frac_cpg_cov_ge5": _safe_float(m.get("frac_cpg_cov_ge5")),
+            "metrics_source": _metrics_source(pipeline_used, tsv is not None)}
 
 
 def populate_qc(conn: sqlite3.Connection, accession: str, q: Dict[str, Any]) -> None:
@@ -743,6 +762,9 @@ def build(
     """Drop + recreate the DB, populate all tables. Returns row count dict."""
     output_root = data_root / "output"
     qc = load_qc_tsvs(qc_dir)
+    if qc_dir is not None and not any((qc_dir / n).exists() for n in QC_TSV_NAMES.values()):
+        log.warning("qc-dir %s contains none of the QC TSVs %s; sample_qc will use pipeline stats only",
+                    qc_dir, sorted(QC_TSV_NAMES.values()))
 
     # Drop and recreate
     if db_path.exists():

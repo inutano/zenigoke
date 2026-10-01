@@ -416,3 +416,156 @@ def test_build_sample_qc_without_tsv_uses_pipeline_stats(tmp_path):
     assert v2row == ("PASS", 93.0, 20.0, "pipeline")
     assert c.execute("SELECT qc_flag, metrics_source FROM sample_qc WHERE accession='SRX9800305'"
                      ).fetchone() == ("NA", None)
+
+
+# ---------------------------------------------------------------------------
+# Tests: sample_qc merge paths (pipeline stats + subsample TSV)
+# ---------------------------------------------------------------------------
+
+CHIP_QC_HEADER = ("accession\tstrategy\tstatus\taligned_pct\tdup_pct\tusable_fragments\torganelle_pct\t"
+                  "human_pct\tother_unmapped_pct\tpeaks_q05\tpeaks_in_organelle_like_pct\tqc_flag\tpeak_flag\n")
+BS_QC_HEADER = ("accession\tmean_cpg\tmean_chg\tmean_chh\tpct_reads_chrC\tpct_reads_bacteria_panel\t"
+                "pct_reads_unmapped_all_refs\tnonconv_chrC_CHH\tfrac_cpg_cov_ge5\tqc_flag\n")
+BS_LEGACY = ["SRX3", "1", "100", "50", "17561884", "73.6", "30.0", "5.0",
+             "22", "0", "3", "40", "0.3030", "0.1430", "0.0480"]
+
+
+def _qc_db_row(db, acc):
+    c = sqlite3.connect(str(db))
+    c.row_factory = sqlite3.Row
+    return dict(c.execute("SELECT * FROM sample_qc WHERE accession=?", (acc,)).fetchone())
+
+
+def _put_stats(data_root, sub, acc, cols):
+    cols = [acc] + list(cols[1:])
+    _write(data_root / "output" / sub / acc / f"{acc}.stats.tsv", "\t".join(cols) + "\n")
+    _write(data_root / "status" / f"{acc}.ok", "")
+
+
+def test_sample_qc_bs_v2_with_tsv_prefers_pipeline_values(tmp_path):
+    data_root, qc_dir = tmp_path / "data", tmp_path / "qc"
+    _put_stats(data_root, "bsseq", "SRX9800310",
+               BS_LEGACY + ["zenigoke-v2", "60.1", "45.2", "0.0207"])
+    # TSV would say FAIL (all-context methylation 0.99, nonconv 0.005 -> no warn), pipeline says otherwise
+    _write(qc_dir / "2026-10-01-bsseq-qc.tsv", BS_QC_HEADER +
+           "SRX9800310\t0.99\t0.99\t0.99\t2.78\t5\t10\t0.005\t0.5\tFAIL\n")
+    db = tmp_path / "k.db"
+    bcd.build(data_root, tmp_path / "meta", db, qc_dir=qc_dir)
+    q = _qc_db_row(db, "SRX9800310")
+    # flag from pipeline means (0.303/0.143/0.048) + pipeline nonconv 2.07% (WARN, not the TSV 0.5%)
+    assert q["qc_flag"] == "WARN"
+    assert "non-conversion 2.1% > 2%" in q["qc_reasons"]
+    assert "wrong strand" not in q["qc_reasons"]
+    assert q["nonconv_pct"] == pytest.approx(2.07)
+    assert q["organelle_pct"] == 45.2          # pipeline col 18, not TSV pct_reads_chrC (2.78)
+    assert q["foreign_pct"] == 15.0            # TSV unmapped (10) + bacteria (5)
+    assert q["frac_cpg_cov_ge5"] == 0.5        # TSV only
+    assert q["metrics_source"] == "pipeline+subsample"
+    assert q["peak_flag"] is None and q["aligned_pct"] is None
+
+
+def test_sample_qc_bs_legacy_with_tsv_source_reflects_pipeline_means(tmp_path):
+    data_root, qc_dir = tmp_path / "data", tmp_path / "qc"
+    _put_stats(data_root, "bsseq", "SRX9800311", BS_LEGACY)
+    _write(qc_dir / "2026-10-01-bsseq-qc.tsv", BS_QC_HEADER +
+           "SRX9800311\t0.1\t0.1\t0.1\t2.78\t5\t10\t0.003\t0.5\tPASS\n")
+    db = tmp_path / "k.db"
+    bcd.build(data_root, tmp_path / "meta", db, qc_dir=qc_dir)
+    q = _qc_db_row(db, "SRX9800311")
+    assert q["qc_flag"] == "PASS"
+    # legacy stats have no nonconv/organelle_pct: those fall back to the TSV...
+    assert q["nonconv_pct"] == pytest.approx(0.3)
+    assert q["organelle_pct"] == 2.78
+    # ...but the means used for the flag came from the pipeline, so the source says so
+    assert q["metrics_source"] == "pipeline+subsample"
+
+
+def test_sample_qc_bs_pipeline_only_source(tmp_path):
+    data_root = tmp_path / "data"
+    _put_stats(data_root, "bsseq", "SRX9800312", BS_LEGACY)
+    db = tmp_path / "k.db"
+    bcd.build(data_root, tmp_path / "meta", db)
+    q = _qc_db_row(db, "SRX9800312")
+    assert q["qc_flag"] == "PASS" and q["metrics_source"] == "pipeline"
+
+
+def test_sample_qc_chip_pe_v2_with_tsv_prefers_pipeline_values(tmp_path):
+    data_root, qc_dir = tmp_path / "data", tmp_path / "qc"
+    _put_stats(data_root, "chipseq", "SRX9800313", V2_CHIP)   # layout "1" = PE
+    # TSV alone would FAIL (aligned 12.9) and flag NUPT peaks (30%); pipeline says clean
+    _write(qc_dir / "2026-10-01-chip-atlas-qc.tsv", CHIP_QC_HEADER +
+           "SRX9800313\tChIP-Seq\tok\t12.9\t90\t100000\t50\t0.2\t3\t3000\t30\tFAIL\tWARN\n")
+    db = tmp_path / "k.db"
+    bcd.build(data_root, tmp_path / "meta", db, qc_dir=qc_dir)
+    q = _qc_db_row(db, "SRX9800313")
+    assert q["qc_flag"] == "PASS", q["qc_reasons"]
+    assert q["aligned_pct"] == 93.0 and q["dup_pct"] == 20.0
+    assert q["usable_fragments"] == 19500000                    # nuclear usable 39.0M / 2 (PE)
+    assert q["organelle_pct"] == pytest.approx(100.0 * 412000 / 39412000)
+    assert q["foreign_pct"] == pytest.approx(3.2)               # TSV human 0.2 + bacterial-like 3
+    assert q["peak_flag"] == "OK"
+    assert q["peaks_in_organelle_like_pct"] == 0.0
+    assert q["metrics_source"] == "pipeline+subsample"
+
+
+def test_sample_qc_chip_se_v2_fragments_equal_reads(tmp_path):
+    data_root = tmp_path / "data"
+    v2 = V2_CHIP[:]
+    v2[1] = "0"                                                  # SE
+    _put_stats(data_root, "chipseq", "SRX9800314", v2)
+    db = tmp_path / "k.db"
+    bcd.build(data_root, tmp_path / "meta", db)
+    q = _qc_db_row(db, "SRX9800314")
+    assert q["usable_fragments"] == 39000000
+    assert q["metrics_source"] == "pipeline"
+
+
+def test_qc_row_v2_missing_pipeline_field_keeps_tsv_value():
+    """A blank pipeline field must not overwrite (or erase) the subsample value."""
+    row = {"library_strategy": "ChIP-Seq", "status": "ok", "layout": "1",
+           "_chipseq_stats": {"format": "zenigoke-v2", "mapping_rate": None, "duplication_rate": 20.0,
+                              "nuclear_usable_reads": None, "usable_reads": 39412000,
+                              "organelle_usable_reads": None, "peaks_q5": 1097}}
+    tsv = {"_kind": "chip", "status": "ok", "aligned_pct": "88", "dup_pct": "55",
+           "usable_fragments": "5600000", "organelle_pct": "1.5", "human_pct": "0",
+           "other_unmapped_pct": "0", "peaks_q05": "10", "peaks_in_organelle_like_pct": "0"}
+    q = bcd.qc_row(row, tsv)
+    assert q["aligned_pct"] == 88.0            # kept from TSV (pipeline value missing)
+    assert q["dup_pct"] == 20.0                # pipeline value present -> wins
+    assert q["usable_fragments"] == 5600000
+    assert q["organelle_pct"] == 1.5
+    assert q["metrics_source"] == "pipeline+subsample"
+
+
+def test_qc_row_legacy_chip_source_is_subsample_only():
+    """Legacy ChIP stats carry no QC fields, so a legacy sample is purely subsample-based."""
+    row = {"library_strategy": "ChIP-Seq", "status": "ok", "layout": "1",
+           "_chipseq_stats": bcd.parse_chipseq_stats(LEGACY_CHIP)}
+    tsv = {"_kind": "chip", "status": "ok", "aligned_pct": "90", "dup_pct": "10",
+           "usable_fragments": "9000000", "organelle_pct": "1", "human_pct": "0",
+           "other_unmapped_pct": "0", "peaks_q05": "100", "peaks_in_organelle_like_pct": "0"}
+    assert bcd.qc_row(row, tsv)["metrics_source"] == "subsample-2026-10-01"
+    assert bcd.qc_row(row, None)["metrics_source"] is None
+    assert bcd.qc_row(row, None)["qc_flag"] == "NA"
+
+
+def test_qc_row_foreign_pct_tolerates_blank_values():
+    row = {"library_strategy": "ChIP-Seq", "status": "ok", "layout": "0", "_chipseq_stats": {}}
+    base = {"_kind": "chip", "status": "ok", "aligned_pct": "90", "human_pct": "", "other_unmapped_pct": ""}
+    assert bcd.qc_row(row, base)["foreign_pct"] is None
+    assert bcd.qc_row(row, {**base, "other_unmapped_pct": "4.5"})["foreign_pct"] == 4.5
+    assert bcd.qc_row(row, {**base, "human_pct": "n/a", "other_unmapped_pct": "4.5"})["foreign_pct"] == 4.5
+
+
+def test_build_warns_when_qc_dir_has_no_tsvs(tmp_path, caplog):
+    data_root = tmp_path / "data"
+    _put_stats(data_root, "chipseq", "SRX9800315", LEGACY_CHIP)
+    empty_qc = tmp_path / "qc"
+    empty_qc.mkdir()
+    with caplog.at_level("WARNING"):
+        bcd.build(data_root, tmp_path / "meta", tmp_path / "k.db", qc_dir=empty_qc)
+    assert any("QC TSV" in r.getMessage() for r in caplog.records)
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        bcd.build(data_root, tmp_path / "meta", tmp_path / "k2.db")      # no qc_dir: not an error
+    assert not any("QC TSV" in r.getMessage() for r in caplog.records)
