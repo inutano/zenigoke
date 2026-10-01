@@ -133,6 +133,7 @@ FASTP_JSON="$WORK/fastp.json"
 # SE: abismal reads directly from process substitution (no disk write).
 log "Step 0: fastp QC/trimming"
 T0=$(date +%s)
+STEP0_START=$T0   # used by the "Step 0+1a done" timing log below
 
 if [ "$IS_PAIRED" = true ]; then
   fastp --in1 "$FASTQ_FWD" --in2 "$FASTQ_REV" \
@@ -428,8 +429,9 @@ MEAN_CPG=$(mean_meth "$WORK/counts.CpG.tsv")
 MEAN_CHG=$(mean_meth "$WORK/counts.CHG.tsv")
 MEAN_CHH=$(mean_meth "$WORK/counts.CHH.tsv")
 
-# FASTQ file size (bytes), sum for PE
-FASTQ_SIZE=$(du -sb "$FASTQ_FWD" ${FASTQ_REV:+"$FASTQ_REV"} 2>/dev/null | awk '{s+=$1} END {print s+0}')
+# FASTQ file size (bytes), sum for PE. %.0f, not print (%.6g above 2^31) or
+# %d (mawk 1.3.4 clamps it to 2147483647).
+FASTQ_SIZE=$(du -sb "$FASTQ_FWD" ${FASTQ_REV:+"$FASTQ_REV"} 2>/dev/null | awk '{s+=$1} END {printf "%.0f", s}')
 
 # Write stats TSV: 19 contiguous columns (cols 1-15 match the report generator's key list).
 # Cols 1-11:  sample layout fastq_size dedup_bam_size read_count mapping_rate

@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 #
+# NOTE (2026-10-01): run-sample.sh now detects PAIRED runs with a single FASTQ
+# on ENA and downloads them directly, so this script is no longer needed. It
+# is kept only as Phase-1 provenance (how SRX29617444-455 were recovered).
+#
 # Recover from a known fast-download.sh failure mode:
 #   ENA reports library_layout=PAIRED, but fastq_ftp lists only a single
 #   combined .fastq.gz (no _1/_2 split). The upstream CONCAT step then
@@ -20,7 +24,7 @@ STRATEGY="${2:?need library_strategy}"
 
 DATA_ROOT="${DATA_ROOT:-/data1/zenigoke}"
 FASTQ_DIR="$DATA_ROOT/fastq/$ACCESSION"
-STATUS_DIR="$DATA_ROOT/status"
+STATUS_DIR="${STATUS_DIR:-$DATA_ROOT/status}"
 
 # Pre-clean any stale state
 rm -rf "$FASTQ_DIR"

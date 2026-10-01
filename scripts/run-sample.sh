@@ -9,9 +9,22 @@ set -euo pipefail
 ACCESSION="${1:?need accession}"
 STRATEGY="${2:?need library_strategy}"
 
+# OUTPUT_ROOT, STATUS_DIR and LOG_DIR are all-or-none: a half-set trio would
+# silently send the unset ones to the published Phase-1 dirs under $DATA_ROOT.
+given=""; missing=""
+for v in OUTPUT_ROOT STATUS_DIR LOG_DIR; do
+  if [ -n "${!v:-}" ]; then given="$given $v"; else missing="$missing $v"; fi
+done
+if [ -n "$given" ] && [ -n "$missing" ]; then
+  echo "ERROR: set all of OUTPUT_ROOT STATUS_DIR LOG_DIR or none (set:$given; missing:$missing)" >&2
+  exit 2
+fi
+
 DATA_ROOT="${DATA_ROOT:-/data1/zenigoke}"
 REF_DIR="${REF_DIR:-$DATA_ROOT/references/MpTak_v7.1_org}"
 REF_NAME="${REF_NAME:-MpTak_v7.1_org}"
+# OUTPUT_ROOT, STATUS_DIR and LOG_DIR must live under DATA_ROOT: only DATA_ROOT
+# is bind-mounted into the pipeline containers.
 OUTPUT_ROOT="${OUTPUT_ROOT:-$DATA_ROOT/output}"
 STATUS_DIR="${STATUS_DIR:-$DATA_ROOT/status}"
 LOG_DIR="${LOG_DIR:-$DATA_ROOT/logs}"
@@ -48,30 +61,43 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# verify_md5 FILE EXPECTED: remove FILE and fail unless its md5 equals EXPECTED.
+verify_md5() {
+  local got
+  got=$(md5sum "$1" | cut -d' ' -f1)
+  if [ -z "$2" ] || [ "$got" != "$2" ]; then
+    echo "ERROR: md5 mismatch for $1 (got $got, ENA ${2:-<none>}); file removed"
+    rm -f "$1"
+    return 1
+  fi
+  echo "   md5 ok: $(basename "$1") $got"
+}
+
 exec > >(tee -a "$LOG") 2>&1
 echo "=== $(date -Iseconds) start $ACCESSION ($STRATEGY) ==="
 
 # --- FASTQ download ---
-RUN_ACCS=$(curl -fsSL \
+RUN_ACCS=$(curl -fsSL --retry 5 --retry-delay 10 --max-time 120 \
   "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${ACCESSION}&result=read_run&fields=run_accession&format=tsv" \
   | awk 'NR>1 {print $1}')
 [ -z "$RUN_ACCS" ] && { echo "ERROR: no runs for $ACCESSION"; exit 2; }
 
 for run in $RUN_ACCS; do
-  # ENA sometimes labels a run PAIRED but serves one interleaved-less file
-  # (SRX29617444-455). fast-download.sh then fails at CONCAT, so fetch the
-  # single file directly and let the SE path below pick it up.
+  # ENA lists a single FASTQ for some runs labelled PAIRED (SRX29617444-455).
+  # Fetch that file directly (md5-checked) and run it as SE.
   # ENA always prepends run_accession to the requested fields, so pick the
   # columns by header name rather than position.
-  FTP=$(curl -fsSL "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${run}&result=read_run&fields=library_layout,fastq_ftp&format=tsv" \
+  FTP=$(curl -fsSL --retry 5 --retry-delay 10 --max-time 120 \
+        "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${run}&result=read_run&fields=library_layout,fastq_ftp,fastq_md5&format=tsv" \
         | awk -F'\t' 'NR==1 {for (i=1;i<=NF;i++) c[$i]=i}
-                      NR==2 {print $c["library_layout"]"\t"$c["fastq_ftp"]}')
-  LAYOUT=${FTP%%$'\t'*}; URLS=${FTP#*$'\t'}
+                      NR==2 {print $c["library_layout"]"\t"$c["fastq_ftp"]"\t"$c["fastq_md5"]}')
+  LAYOUT=${FTP%%$'\t'*}; REST=${FTP#*$'\t'}; URLS=${REST%%$'\t'*}; MD5=${REST#*$'\t'}
   if [ "$LAYOUT" = "PAIRED" ] && [ "$(echo "$URLS" | tr ';' '\n' | grep -c .)" = "1" ]; then
     echo "   $run: PAIRED with a single FASTQ on ENA → direct download, run as SE"
     aria2c --max-tries=10 --retry-wait=10 --split=4 --max-connection-per-server=4 \
       --continue=true --allow-overwrite=true --auto-file-renaming=false \
       --console-log-level=warn --dir="$FASTQ_DIR" --out="$(basename "$URLS")" "https://$URLS"
+    verify_md5 "$FASTQ_DIR/$(basename "$URLS")" "$MD5"
   else
     bash "$PIPELINES_REPO/scripts/fast-download.sh" "$run" "$FASTQ_DIR"
   fi
