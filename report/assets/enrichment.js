@@ -145,18 +145,26 @@ function sendTopToIGV(n) {
   return sendToIGV(all);
 }
 
-function downloadCsv() {
-  if (!lastResults) return;
+// RFC 4180: every field double-quoted, embedded quotes doubled (curated values contain commas)
+function csvField(v) {
+  return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+}
+
+function resultsCsv(results) {
   const hdr = ["rank","accession","library_strategy","antibody_target","genotype_strain",
                "developmental_stage","overlap_count","fold_enrichment","p_value","q_value"];
-  const rows = lastResults.results.map((r, i) => [
+  const rows = results.map((r, i) => [
     i+1, r.accession, r.library_strategy, r.antibody_target || "",
     r.genotype_strain || "", r.developmental_stage || "",
     r.overlap_count, r.fold_enrichment.toFixed(4),
     r.p_value.toExponential(4), r.q_value.toExponential(4),
   ]);
-  const csv = [hdr.join(","), ...rows.map(r => r.join(","))].join("\n");
-  const blob = new Blob([csv], {type: "text/csv"});
+  return [hdr, ...rows].map(r => r.map(csvField).join(",")).join("\n");
+}
+
+function downloadCsv() {
+  if (!lastResults) return;
+  const blob = new Blob([resultsCsv(lastResults.results)], {type: "text/csv"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "enrichment.csv";
@@ -164,7 +172,7 @@ function downloadCsv() {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = {escapeHtml, rowHtml, summaryText};   // node unit tests
+  module.exports = {escapeHtml, rowHtml, summaryText, csvField, resultsCsv};   // node unit tests
 } else {
   init();
 }

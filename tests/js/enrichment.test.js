@@ -26,4 +26,23 @@ assert.strictEqual(E.summaryText({n_user_regions: 10, n_user_regions_excluded: 0
                    "10 input regions × 5 experiments");
 assert.strictEqual(E.summaryText({n_user_regions: 10, n_experiments_tested: 5}),
                    "10 input regions × 5 experiments");
+// CSV export quotes every field (RFC 4180): curated values contain commas and quotes
+assert.strictEqual(E.csvField("H3K27me3"), '"H3K27me3"');
+assert.strictEqual(E.csvField("a,b"), '"a,b"');
+assert.strictEqual(E.csvField('say "hi"'), '"say ""hi"""');
+assert.strictEqual(E.csvField("line1\nline2"), '"line1\nline2"');
+assert.strictEqual(E.csvField(3), '"3"');
+assert.strictEqual(E.csvField(null), '""');
+assert.strictEqual(E.csvField(undefined), '""');
+const csv = E.resultsCsv([
+  {...base, antibody_target: "H3K4me3, H3K27ac", genotype_strain: 'Tak-1 "wild type"'},
+  {...base, accession: "SRX2", antibody_target: null, genotype_strain: null},
+]);
+const lines = csv.split("\n");
+assert.strictEqual(lines.length, 3, csv);
+assert.strictEqual(lines[0], '"rank","accession","library_strategy","antibody_target","genotype_strain",' +
+                             '"developmental_stage","overlap_count","fold_enrichment","p_value","q_value"');
+assert.strictEqual(lines[1], '"1","SRX1","ChIP-Seq","H3K4me3, H3K27ac","Tak-1 ""wild type""","",' +
+                             '"2","1.5000","1.0000e-2","2.0000e-2"');
+assert.strictEqual(lines[2], '"2","SRX2","ChIP-Seq","","","","2","1.5000","1.0000e-2","2.0000e-2"');
 console.log("enrichment.js: all tests passed");
