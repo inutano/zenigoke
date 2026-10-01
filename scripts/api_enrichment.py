@@ -369,6 +369,8 @@ def run_enrichment(req: EnrichmentRequest) -> dict:
 
     payload = {
         "n_user_regions": n_user,
+        # regions dropped because they overlap the organelle-like (NUPT/NUMT) blacklist
+        "n_user_regions_excluded": len(regions) - n_user,
         "n_experiments_tested": len(results),
         "genome_bp": genome_bp,
         "results": results,

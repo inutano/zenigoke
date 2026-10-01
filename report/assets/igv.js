@@ -21,7 +21,7 @@
       const ql = Q_LABEL[q] || "10";
       return [
         {name: cleanName(`${acc}${label} | signal`), url: dataUrl(`output/${sub}/${acc}/${acc}.bw`, base), format: "bigwig", color},
-        {name: cleanName(`${acc}${label} | peaks q<${q}`), url: dataUrl(`output/${sub}/${acc}/${acc}.${ql}.bb`, base), format: "bigbed", color},
+        {name: cleanName(`${acc}${label} | peaks q < ${q}`), url: dataUrl(`output/${sub}/${acc}/${acc}.${ql}.bb`, base), format: "bigbed", color},
       ];
     }
     if (strat === "Bisulfite-Seq") {
@@ -63,7 +63,14 @@
     if (r.status !== 200 && r.status !== 204) {
       return {ok: false, status: "igv-error", message: "IGV answered HTTP " + r.status + " to the load request."};
     }
-    const body = r.status === 200 ? String(await r.text()) : "";
+    let body = "";
+    if (r.status === 200) {
+      try {
+        body = String(await r.text());
+      } catch (e) {
+        return {ok: false, status: "igv-error", message: "Error reading IGV's reply to the load request."};
+      }
+    }
     if (body.startsWith("ERROR")) return {ok: false, status: "igv-error", message: body};
     return {ok: true, status: "loaded", message: `Loaded ${tracks.length} tracks in IGV`};
   }

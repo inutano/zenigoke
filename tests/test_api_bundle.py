@@ -114,3 +114,10 @@ def test_bundle_skips_consensus_for_single_sample(client):
 def test_bundle_rejects_empty(client):
     r = client.post("/api/bundle", json={"accessions": [], "q_cutoff": "1e-10", "groups": []})
     assert r.status_code in (400, 422)
+
+
+def test_track_names_use_q_less_than_wording():
+    import igv_url_helper as h
+    tracks = h.per_sample_tracks({"accession": "SRX_A", "library_strategy": "ChIP-Seq"}, "1e-10", "#000")
+    assert tracks[1]["name"] == "SRX_A peaks q < 1e-10"
+    assert h.consensus_track("ChIP-Seq", "abc", "1e-5", 3)["name"] == "consensus ChIP-Seq q < 1e-5 (n=3)"

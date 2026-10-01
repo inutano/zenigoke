@@ -31,7 +31,7 @@ def per_sample_tracks(sample: dict, q_cutoff: str, color: str) -> list[dict]:
         return [
             {"name": f"{acc} bigwig", "url": f"{base}/output/{sub}/{acc}/{acc}.bw",
              "type": "wig", "color": color, "group": sample.get("_group", "")},
-            {"name": f"{acc} peaks q≤{q_cutoff}",
+            {"name": f"{acc} peaks q < {q_cutoff}",
              "url": f"{base}/output/{sub}/{acc}/{acc}.{q_label}.bb",
              "type": "annotation", "color": color, "group": sample.get("_group", "")},
         ]
@@ -52,7 +52,7 @@ def per_sample_tracks(sample: dict, q_cutoff: str, color: str) -> list[dict]:
 
 def consensus_track(strategy: str, hash_id: str, q_cutoff: str, n_samples: int) -> dict:
     return {
-        "name": f"consensus {strategy} q≤{q_cutoff} (n={n_samples})",
+        "name": f"consensus {strategy} q < {q_cutoff} (n={n_samples})",
         "url": f"{_bundles_public()}/{hash_id}/consensus.{strategy}.bed",
         "type": "annotation",
         "color": "#1a9970",

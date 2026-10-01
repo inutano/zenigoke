@@ -234,3 +234,18 @@ def test_blacklist_path_silent_when_disabled_or_default(tmp_path, monkeypatch, c
         monkeypatch.delenv("ZENIGOKE_BLACKLIST")
         assert ae._blacklist_path() is not None           # unset -> repo default
     assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+
+
+def test_enrichment_reports_blacklist_excluded_region_count(client_bl):
+    r = client_bl.post("/api/enrichment", json={
+        "regions_bed": "chr1\t120\t180\nchr1\t150\t160\nchr1\t910\t950\n", "q_cutoff": "1e-10"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["n_user_regions"] == 1
+    assert body["n_user_regions_excluded"] == 2
+
+
+def test_enrichment_excluded_count_is_zero_without_blacklist(client):
+    r = client.post("/api/enrichment", json={"regions_bed": "chr1\t120\t180\n", "q_cutoff": "1e-10"})
+    assert r.status_code == 200, r.text
+    assert r.json()["n_user_regions_excluded"] == 0

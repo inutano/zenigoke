@@ -12,6 +12,8 @@ assert.deepStrictEqual(chip.map(t => t.format), ["bigwig", "bigbed"]);
 assert.ok(chip[1].url.endsWith("/output/chipseq/SRX1/SRX1.10.bb"));
 // names never contain commas
 for (const t of chip) assert.ok(!t.name.includes(","), t.name);
+// threshold wording: "q < 1e-10"
+assert.ok(chip[1].name.endsWith("| peaks q < 1e-10"), chip[1].name);
 
 const bs = I.tracksForAccession("SRX2", {strategy: "Bisulfite-Seq"}, "#000", BASE);
 assert.deepStrictEqual(bs.map(t => t.format), ["bigwig", "bigwig", "bigwig", "bed"]);
@@ -40,5 +42,13 @@ assert.strictEqual(u.searchParams.get("merge"), "true");
   const http500 = async (url) => ({status: url.includes("/execute") ? 200 : 500, text: async () => ""});
   r = await I.send(chip, {fetchImpl: http500});
   assert.strictEqual(r.ok, false); assert.strictEqual(r.status, "igv-error");
+  // a rejected body read is an igv-error result, not a rejected promise (button would stay stuck)
+  const badBody = async (url) => ({status: 200, text: async () => {
+    if (url.includes("/execute")) return "2.19.1";
+    throw new TypeError("network error while reading body");
+  }});
+  r = await I.send(chip, {fetchImpl: badBody});
+  assert.strictEqual(r.ok, false); assert.strictEqual(r.status, "igv-error");
+  assert.ok(r.message.includes("reading"), r.message);
   console.log("igv.js: all tests passed");
 })().catch(e => { console.error(e); process.exit(1); });

@@ -1,6 +1,6 @@
 "use strict";
 
-const API = (window.ZENIGOKE_API_BASE || "").replace(/\/$/, "");
+const API = ((typeof window !== "undefined" && window.ZENIGOKE_API_BASE) || "").replace(/\/$/, "");
 
 const ui = {
   bed:    () => document.getElementById("bed-input"),
@@ -61,26 +61,45 @@ async function run() {
   }
 }
 
+// Accession and curated metadata (LLM-extracted from third-party records) go
+// into innerHTML, so they are escaped.
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g,
+    c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+
+function cell(v) { return v == null || v === "" ? "&mdash;" : escapeHtml(v); }
+
+function rowHtml(r, i) {
+  const acc = escapeHtml(r.accession);
+  return `
+      <td>${i+1}</td>
+      <td><a href="samples/${escapeHtml(encodeURIComponent(r.accession))}.html">${acc}</a></td>
+      <td>${cell(r.antibody_target)}</td>
+      <td>${cell(r.genotype_strain)}</td>
+      <td>${cell(r.developmental_stage)}</td>
+      <td>${Number(r.overlap_count)}</td>
+      <td>${Number(r.fold_enrichment).toFixed(2)}</td>
+      <td>${Number(r.p_value).toExponential(2)}</td>
+      <td>${Number(r.q_value).toExponential(2)}</td>
+      <td><a href="#" data-idx="${i}" class="row-igv">&#9654; IGV</a></td>`;
+}
+
+function summaryText(data) {
+  const ex = Number(data.n_user_regions_excluded) || 0;
+  const excluded = ex > 0 ? ` (${ex} excluded: organelle-like)` : "";
+  return `${data.n_user_regions} input regions${excluded} × ${data.n_experiments_tested} experiments`;
+}
+
 function render(data) {
   lastResults = data;
   ui.card().style.display = "";
-  ui.summary().textContent =
-    `${data.n_user_regions} input regions × ${data.n_experiments_tested} experiments`;
+  ui.summary().textContent = summaryText(data);
   const tbody = ui.tbody();
   tbody.innerHTML = "";
   data.results.forEach((r, i) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td><a href="samples/${r.accession}.html">${r.accession}</a></td>
-      <td>${r.antibody_target || "&mdash;"}</td>
-      <td>${r.genotype_strain || "&mdash;"}</td>
-      <td>${r.developmental_stage || "&mdash;"}</td>
-      <td>${r.overlap_count}</td>
-      <td>${r.fold_enrichment.toFixed(2)}</td>
-      <td>${r.p_value.toExponential(2)}</td>
-      <td>${r.q_value.toExponential(2)}</td>
-      <td><a href="#" data-idx="${i}" class="row-igv">&#9654; IGV</a></td>`;
+    tr.innerHTML = rowHtml(r, i);
     tbody.appendChild(tr);
   });
   for (const a of tbody.querySelectorAll("a.row-igv")) {
@@ -144,4 +163,8 @@ function downloadCsv() {
   a.click();
 }
 
-init();
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {escapeHtml, rowHtml, summaryText};   // node unit tests
+} else {
+  init();
+}
