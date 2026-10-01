@@ -9,7 +9,8 @@ set -euo pipefail
 
 CSV="${CSV:-zenigoke_sra_experiments.csv}"
 DATA_ROOT="${DATA_ROOT:-/data1/zenigoke}"
-STATUS_DIR="$DATA_ROOT/status"
+STATUS_DIR="${STATUS_DIR:-$DATA_ROOT/status}"
+export STATUS_DIR
 RESUME=0
 ONLY=""
 FILTER=""

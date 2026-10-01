@@ -10,18 +10,23 @@ ACCESSION="${1:?need accession}"
 STRATEGY="${2:?need library_strategy}"
 
 DATA_ROOT="${DATA_ROOT:-/data1/zenigoke}"
-REF_DIR="$DATA_ROOT/references/MpTak_v7.1"
+REF_DIR="${REF_DIR:-$DATA_ROOT/references/MpTak_v7.1_org}"
+REF_NAME="${REF_NAME:-MpTak_v7.1_org}"
+OUTPUT_ROOT="${OUTPUT_ROOT:-$DATA_ROOT/output}"
+STATUS_DIR="${STATUS_DIR:-$DATA_ROOT/status}"
+LOG_DIR="${LOG_DIR:-$DATA_ROOT/logs}"
 PIPELINES_REPO="${PIPELINES_REPO:-$HOME/repos/chip-atlas-pipeline-v2}"
 ZENIGOKE_REPO="${ZENIGOKE_REPO:-$HOME/work/zenigoke}"
-THREADS="${THREADS:-32}"
+BLACKLIST="$ZENIGOKE_REPO/configs/organelle_like_regions.MpTak_v7.1.bed"
+# 32 threads reproduced a bwa-mem2 SEQ/QUAL mismatch on SRX29617452; 16 did not.
+THREADS="${THREADS:-16}"
 
 CHIP_IMG="ghcr.io/inutano/chip-atlas-pipeline-v2:v1.0.0"
 BS_IMG="ghcr.io/inutano/chip-atlas-pipeline-v2-bs:v1.1.0"
 
 FASTQ_DIR="$DATA_ROOT/fastq/$ACCESSION"
 TMP_DIR="$DATA_ROOT/tmp/$ACCESSION"
-LOG="$DATA_ROOT/logs/$ACCESSION.log"
-STATUS_DIR="$DATA_ROOT/status"
+LOG="$LOG_DIR/$ACCESSION.log"
 
 mkdir -p "$FASTQ_DIR" "$TMP_DIR" "$STATUS_DIR" "$(dirname "$LOG")"
 
@@ -53,7 +58,23 @@ RUN_ACCS=$(curl -fsSL \
 [ -z "$RUN_ACCS" ] && { echo "ERROR: no runs for $ACCESSION"; exit 2; }
 
 for run in $RUN_ACCS; do
-  bash "$PIPELINES_REPO/scripts/fast-download.sh" "$run" "$FASTQ_DIR"
+  # ENA sometimes labels a run PAIRED but serves one interleaved-less file
+  # (SRX29617444-455). fast-download.sh then fails at CONCAT, so fetch the
+  # single file directly and let the SE path below pick it up.
+  # ENA always prepends run_accession to the requested fields, so pick the
+  # columns by header name rather than position.
+  FTP=$(curl -fsSL "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=${run}&result=read_run&fields=library_layout,fastq_ftp&format=tsv" \
+        | awk -F'\t' 'NR==1 {for (i=1;i<=NF;i++) c[$i]=i}
+                      NR==2 {print $c["library_layout"]"\t"$c["fastq_ftp"]}')
+  LAYOUT=${FTP%%$'\t'*}; URLS=${FTP#*$'\t'}
+  if [ "$LAYOUT" = "PAIRED" ] && [ "$(echo "$URLS" | tr ';' '\n' | grep -c .)" = "1" ]; then
+    echo "   $run: PAIRED with a single FASTQ on ENA → direct download, run as SE"
+    aria2c --max-tries=10 --retry-wait=10 --split=4 --max-connection-per-server=4 \
+      --continue=true --allow-overwrite=true --auto-file-renaming=false \
+      --console-log-level=warn --dir="$FASTQ_DIR" --out="$(basename "$URLS")" "https://$URLS"
+  else
+    bash "$PIPELINES_REPO/scripts/fast-download.sh" "$run" "$FASTQ_DIR"
+  fi
 done
 
 FASTQS=( "$FASTQ_DIR"/*.fastq.gz )
@@ -72,38 +93,39 @@ echo "   fwd=$FWD  rev=${REV:-<SE>}"
 case "$STRATEGY" in
   ChIP-Seq|ATAC-Seq)
     OUT_SUBDIR=$([ "$STRATEGY" = "ChIP-Seq" ] && echo chipseq || echo atacseq)
-    OUT_DIR="$DATA_ROOT/output/$OUT_SUBDIR/$ACCESSION"
+    OUT_DIR="$OUTPUT_ROOT/$OUT_SUBDIR/$ACCESSION"
     mkdir -p "$OUT_DIR"
     GSIZE=$(cat "$REF_DIR/macs_gsize.txt")
     ARGS=(
       --sample-id "$ACCESSION"
       --fastq-fwd "$FWD"
-      --genome-fasta "$REF_DIR/MpTak_v7.1.fa"
+      --genome-fasta "$REF_DIR/$REF_NAME.fa"
       --chrom-sizes "$REF_DIR/chrom.sizes"
       --genome-size "$GSIZE"
       --outdir "$OUT_DIR"
       --threads "$THREADS"
+      --blacklist "$BLACKLIST"
     )
     [ -n "$REV" ] && ARGS+=( --fastq-rev "$REV" )
     docker run --rm \
       -v "$DATA_ROOT:$DATA_ROOT" \
-      -v "$PIPELINES_REPO:$PIPELINES_REPO:ro" \
+      -v "$ZENIGOKE_REPO:$ZENIGOKE_REPO:ro" \
       -e TMPDIR="$TMP_DIR" \
       -v "$TMP_DIR:$TMP_DIR" \
       --user "$(id -u):$(id -g)" \
       "$CHIP_IMG" \
-      bash "$PIPELINES_REPO/scripts/pipeline-v2.sh" "${ARGS[@]}"
+      bash "$ZENIGOKE_REPO/scripts/pipeline-v2-plant.sh" "${ARGS[@]}"
     ;;
 
   Bisulfite-Seq)
-    OUT_DIR="$DATA_ROOT/output/bsseq/$ACCESSION"
+    OUT_DIR="$OUTPUT_ROOT/bsseq/$ACCESSION"
     mkdir -p "$OUT_DIR"
     ARGS=(
       --sample-id "$ACCESSION"
       --fastq-fwd "$FWD"
       --genome MpTak_v7.1
-      --genome-fasta "$REF_DIR/MpTak_v7.1.fa"
-      --abismal-index "$REF_DIR/MpTak_v7.1.abismal.idx"
+      --genome-fasta "$REF_DIR/$REF_NAME.fa"
+      --abismal-index "$REF_DIR/$REF_NAME.abismal.idx"
       --chrom-sizes "$REF_DIR/chrom.sizes"
       --outdir "$OUT_DIR"
       --threads "$THREADS"
