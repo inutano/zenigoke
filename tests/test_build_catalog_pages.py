@@ -475,6 +475,12 @@ def test_methods_q_value_wording_and_limitations():
     assert "q &lt; 1e-5, 1e-10, 1e-20" in out
     assert "0.05, 0.10, 0.20" not in out
     assert "corrupted FASTQ" not in out
+    # 2026-10 re-analysis: augmented reference, forks, blacklist wording
+    assert "AP025455.1" in out and "AP025456.1" in out
+    assert "pipeline-v2-plant.sh" in out and "abismal -R" in out
+    assert "1,278 NUPT/NUMT-like regions" in out
+    assert "Until the 2026-10 re-analysis" not in out
+    assert "being re-run" not in out
 
 
 def test_qc_helpers():

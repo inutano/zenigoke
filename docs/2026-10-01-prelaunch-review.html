@@ -467,6 +467,7 @@ DUP_RATE = 100 − MAP_RATE</code></pre>
 <section id="actions">
   <span class="secno">4</span>
   <h2>推奨する対応</h2>
+  <p class="note"><b>2026-10-06 追記：</b>この章の対応はブランチ <code>prelaunch-fixes</code> にすべて実装した。オルガネラを加えた参照での再解析は 157 実験すべてで完了し（SRX29617452 は 16 スレッドで完走）、出力を差し替えてカタログを作り直した。QC 判定は PASS 70、WARN 72、FAIL 15 になった。PRJNA1289709 の ChIP-seq 7 実験は MACS3 のモデル推定が失敗してピークが出ない（3実験は旧解析でも 0 件。SRX29617446、449、455 は旧ピークの 46〜59% がオルガネラ様領域にあり、それが消えた）。公開サイトへの反映は所有者の確認待ちである。旧出力との比較は <code>docs/qc/2026-10-06-rerun-summary.md</code> にある。</p>
   <div class="cols">
     <div>
       <h3>再解析なしで直せるもの</h3>

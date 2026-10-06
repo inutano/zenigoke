@@ -977,8 +977,16 @@ def render_methods() -> str:
         "<p><strong>Marchantia polymorpha</strong> MpTak v7.1 standard genome, "
         "downloaded 2026-04-25 from "
         '<a href="https://marchantia.info/data/MpTak_v7.1_standard_genome/" target="_blank">'
-        "marchantia.info</a>. "
+        "marchantia.info</a>, "
+        "+ Tak-1 chloroplast <strong>AP025455.1</strong> (<code>chrC</code>) "
+        "+ mitochondrion <strong>AP025456.1</strong> (<code>chrM</code>). "
+        "Reads are aligned to this augmented reference so that organelle reads map to the "
+        "organelle genomes rather than to nuclear copies of organelle DNA; all outputs "
+        "(bigWig, peaks, methylation tracks) are nuclear-only (the 10 MpTak v7.1 sequences). "
         "MACS3 effective genome size: <strong>248,042,180 bp</strong>.</p>\n"
+        "<p>Organelle-like regions: 1,278 NUPT/NUMT-like regions (311,657 bp) of the nuclear "
+        "genome where organelle reads map when the organelle genomes are absent "
+        "(<code>configs/organelle_like_regions.MpTak_v7.1.bed</code>).</p>\n"
     )
     parts.append("</div>\n")
 
@@ -986,7 +994,11 @@ def render_methods() -> str:
     parts.append('<div class="card">\n')
     parts.append("<h2>ChIP-Seq &amp; ATAC-Seq Pipeline</h2>\n")
     parts.append(
-        "<p>Container: <code>ghcr.io/inutano/chip-atlas-pipeline-v2:v1.0.0</code></p>\n"
+        "<p>Container: <code>ghcr.io/inutano/chip-atlas-pipeline-v2:v1.0.0</code> "
+        "+ local fork <code>pipeline-v2-plant.sh</code> (of upstream <code>pipeline-v2.sh</code>: "
+        "alignment and duplication rates from <code>samtools markdup</code>, bigWig and MACS3 on "
+        "nuclear reads only, q &lt; 1e-5 peaks overlapping NUPT/NUMT-like regions removed before "
+        "the q &lt; 1e-10 / 1e-20 sets are written).</p>\n"
         "<p>Tools:</p>\n"
         "<ul>\n"
         "<li>fastp 1.3.1 (QC + adapter trimming)</li>\n"
@@ -1004,7 +1016,10 @@ def render_methods() -> str:
     parts.append("<h2>Bisulfite-Seq Pipeline</h2>\n")
     parts.append(
         "<p>Container: <code>ghcr.io/inutano/chip-atlas-pipeline-v2-bs:v1.1.0</code> "
-        "+ local <code>pipeline-v2-bs-plant.sh</code> (plant fork adding CpG/CHG/CHH context).</p>\n"
+        "+ local <code>pipeline-v2-bs-plant.sh</code> (plant fork adding CpG/CHG/CHH context; "
+        "<code>abismal -R</code>, which maps reads regardless of strand orientation and rescues "
+        "libraries with R1/R2 swapped; methylation counted on nuclear sequences only; "
+        "non-conversion estimated from chloroplast CHH).</p>\n"
         "<p>Tools:</p>\n"
         "<ul>\n"
         "<li>DNMTools 1.5.1 (methylation calling)</li>\n"
@@ -1035,12 +1050,25 @@ def render_methods() -> str:
     parts.append("<h2>Known Limitations</h2>\n")
     parts.append(
         "<ul>\n"
-        "<li>SRX29617452 failed during alignment with 32 threads (bwa-mem2 SEQ/QUAL length "
-        "mismatch). The FASTQ is intact (md5 matches ENA); it is being re-run with 16 threads.</li>\n"
-        "<li>Until the 2026-10 re-analysis is published, the reference lacks the chloroplast and "
-        "mitochondrion: organelle reads map to nuclear NUPT/NUMT copies, lowering BS-seq mapping "
-        "rates and creating spurious ATAC/input peaks there. QC flags mark the affected "
-        "experiments.</li>\n"
+        "<li>Peaks (q &lt; 1e-5) overlapping the 1,278 NUPT/NUMT-like regions are removed, so no "
+        "peaks are reported in those regions; the q &lt; 1e-10 / 1e-20 sets and bigBeds are "
+        "derived from the filtered set. <code>*.05_peaks.xls</code> is MACS3's raw table and is "
+        "not blacklist-filtered.</li>\n"
+        "<li>Seven low-signal ChIP experiments of PRJNA1289709 (H2A.X: SRX29617446, SRX29617447, "
+        "SRX29617448, SRX29617449; H2A: SRX29617451, SRX29617452; input: SRX29617455) have no "
+        "MACS3 peaks because MACS3 model building fails. SRX29617447, SRX29617448 and "
+        "SRX29617451 had no peaks in the first analysis either; 46&ndash;59% of the earlier peaks "
+        "of SRX29617446, SRX29617449 and SRX29617455 lay in organelle-like regions, and without "
+        "those organelle artefacts no model can be built. Their signal tracks (bigWig) are "
+        "available.</li>\n"
+        "<li>SRX29617452 failed in the first analysis (bwa-mem2 SEQ/QUAL length mismatch with 32 "
+        "threads); the failure did not reproduce in the 2026-10 re-analysis with 16 threads, and "
+        "the experiment now completes.</li>\n"
+        "<li>Ten BS-seq runs were downloaded from DDBJ (<code>.sra</code>, 9 runs) or NCBI "
+        "(SRX20670880) because the ENA API was unavailable during the 2026-10 re-analysis; all "
+        "other experiments came from ENA. NCBI serves SRX20670880 with its original binned "
+        "quality scores (the earlier ENA copy had flat Q30), so fastp removes 0.47% more reads "
+        "than in the first analysis.</li>\n"
         "<li>Several ChIP libraries contain non-Marchantia DNA (bacterial-like and human), up to "
         "86% of reads; see each experiment's QC card.</li>\n"
         "<li>BS-seq <code>duplication_rate</code> is not computed (uses <code>dnmtools uniq</code> "
