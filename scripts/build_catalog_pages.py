@@ -648,6 +648,12 @@ def render_sample(sample: dict) -> str:
         # zenigoke-v2 stats (metrics_source 'pipeline...') mean peaks were blacklist-filtered
         v2 = (sample.get("metrics_source") or "").startswith("pipeline")
         pov = sample.get("peaks_in_organelle_like_pct")
+        if pov is None and v2:
+            # no q < 1e-5 peaks (or no peaks file): nothing was called, so nothing was removed
+            no_peaks = not sample.get("peaks_q5") or not sample.get("peaks_q5_path")
+            pov_cell = "no peaks called" if no_peaks else "removed by blacklist"
+        else:
+            pov_cell = _fmt_pct(pov)
         qc_rows += [
             (L["aligned_pct"], _fmt_pct(_aligned(sample))),
             (L["dup_pct"], _fmt_pct(dup)),
@@ -660,8 +666,7 @@ def render_sample(sample: dict) -> str:
             qc_rows.append((qc_flags.ORGANELLE_DEDUP_LABEL, _fmt_pct(org_dedup)))
         qc_rows += [
             (L["foreign_pct"], _fmt_pct(sample.get("foreign_pct"))),
-            (L["peaks_in_organelle_like_pct"],
-             "removed by blacklist" if pov is None and v2 else _fmt_pct(pov)),
+            (L["peaks_in_organelle_like_pct"], pov_cell),
         ]
     else:
         L = qc_flags.BS_QC_LABELS
@@ -1056,17 +1061,17 @@ def render_methods() -> str:
         "not blacklist-filtered.</li>\n"
         "<li>Seven low-signal ChIP experiments of PRJNA1289709 (H2A.X: SRX29617446, SRX29617447, "
         "SRX29617448, SRX29617449; H2A: SRX29617451, SRX29617452; input: SRX29617455) have no "
-        "MACS3 peaks because MACS3 model building fails. SRX29617447, SRX29617448 and "
-        "SRX29617451 had no peaks in the first analysis either; 46&ndash;59% of the earlier peaks "
-        "of SRX29617446, SRX29617449 and SRX29617455 lay in organelle-like regions, and without "
-        "those organelle artefacts no model can be built. Their signal tracks (bigWig) are "
-        "available.</li>\n"
+        "MACS3 peaks, most likely because MACS3 cannot build its shift model once the organelle "
+        "artefacts are gone; the pipeline log only reports that no peaks were found. "
+        "SRX29617447, SRX29617448 and SRX29617451 had no peaks in the first analysis either; "
+        "46&ndash;59% of the earlier peaks of SRX29617446, SRX29617449 and SRX29617455 lay in "
+        "organelle-like regions. Their signal tracks (bigWig) are available.</li>\n"
         "<li>SRX29617452 failed in the first analysis (bwa-mem2 SEQ/QUAL length mismatch with 32 "
         "threads); the failure did not reproduce in the 2026-10 re-analysis with 16 threads, and "
         "the experiment now completes.</li>\n"
         "<li>Ten BS-seq runs were downloaded from DDBJ (<code>.sra</code>, 9 runs) or NCBI "
         "(SRX20670880) because the ENA API was unavailable during the 2026-10 re-analysis; all "
-        "other experiments came from ENA. NCBI serves SRX20670880 with its original binned "
+        "other experiments came from ENA. NCBI serves SRX20670880 with original (non-flat) "
         "quality scores (the earlier ENA copy had flat Q30), so fastp removes 0.47% more reads "
         "than in the first analysis.</li>\n"
         "<li>Several ChIP libraries contain non-Marchantia DNA (bacterial-like and human), up to "

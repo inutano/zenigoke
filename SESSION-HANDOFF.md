@@ -205,8 +205,9 @@ git push origin main
   (expected deletes: the peak files of SRX29617446/449/455, 21 files), the real sync,
   merge to `main`, EC2 refresh with `04-ec2-bootstrap.sh`.
 - Owner decisions open: 7 PRJNA1289709 ChIP experiments have no MACS3 peaks
-  (model building fails without the organelle artefacts; a `--nomodel` fallback
-  would need a pipeline change + re-run); delete `/data1/zenigoke/tmp/probe-12b`.
+  (most likely MACS3 cannot build its shift model without the organelle artefacts;
+  the log only says no peaks were found; a `--nomodel` fallback would need a
+  pipeline change + re-run); delete `/data1/zenigoke/tmp/probe-12b`.
 
 ### Deployment status — BOTH MODES LIVE (2026-07-15)
 

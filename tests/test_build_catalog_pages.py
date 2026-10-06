@@ -565,6 +565,25 @@ def test_sample_page_v2_chip_qc_card():
     assert "original pipeline run" not in out
 
 
+def test_sample_page_v2_chip_zero_peaks_says_no_peaks_called():
+    """v2 sample without q05 peaks: nothing was called, so the row must not say 'removed by blacklist'."""
+    for kw in ({"peaks_q5": 0, "peaks_q5_path": None},
+               {"peaks_q5": 0, "peaks_q5_path": "/fake/x.05_peaks.narrowPeak"},
+               {"peaks_q5": None, "peaks_q5_path": None}):
+        s = _qc_sample(accession="SRX29617447", aligned_pct=96.8, dup_pct=5.8, organelle_pct=0.44,
+                       organelle_dedup_pct=0.42, peaks_in_organelle_like_pct=None, peak_flag="NA",
+                       qc_flag="PASS", qc_reasons=None, metrics_source="pipeline+subsample",
+                       subsample_fields="organelle reads, non-Marchantia DNA", **kw)
+        out = bcp.render_sample(s)
+        assert "<th>peaks in organelle-like regions</th><td>no peaks called</td>" in out, kw
+        assert "removed by blacklist" not in out, kw
+    # a v2 sample with peaks keeps the blacklist wording; legacy samples keep the percentage
+    out = bcp.render_sample(_qc_sample(peaks_in_organelle_like_pct=None, metrics_source="pipeline+subsample"))
+    assert "<th>peaks in organelle-like regions</th><td>removed by blacklist</td>" in out
+    out = bcp.render_sample(_qc_sample(peaks_q5=0, peaks_q5_path=None))
+    assert "<th>peaks in organelle-like regions</th><td>1.0%</td>" in out
+
+
 def test_sample_page_v2_chip_without_subsample_row():
     """A future sample: no TSV row, so no note, and the organelle row uses the dedup basis only."""
     s = _qc_sample(aligned_pct=95.0, dup_pct=10.0, organelle_pct=None, organelle_dedup_pct=4.2,
