@@ -189,3 +189,43 @@ def test_ec2_bootstrap_clears_blacklist_cache_before_restart(tmp_path):
     assert (tmp_path / "at-restart.txt").read_text() == ""    # already empty when the service restarts
     assert bl.is_dir() and list(bl.iterdir()) == []
     assert (cache / "keep.txt").exists()
+
+
+BETA = REPO / "deploy" / "aws" / "05-sync-beta.sh"
+
+
+def _run_beta(tmp_path, *args):
+    env = _stubs(tmp_path, ["aws"])
+    env["KKMM_SKIP_BUILD"] = "1"      # never rebuild the real web/data/catalog.json in a test
+    return env, subprocess.run(["bash", str(BETA), *args], env=env, capture_output=True, text=True,
+                               timeout=60)
+
+
+@pytest.mark.skipif(not (REPO / "web" / "data" / "catalog.json").exists(),
+                    reason="web/data/catalog.json not built (python3 web/make_index.py)")
+def test_sync_beta_publishes_only_page_files_under_beta(tmp_path):
+    _, r = _run_beta(tmp_path)
+    assert r.returncode == 0, r.stdout + r.stderr
+    calls = _calls(tmp_path, "aws ")
+    assert len(calls) == 1 and calls[0].startswith(f"aws s3 sync {REPO / 'web'} s3://zenigoke-catalog-dsc/beta ")
+    for inc in ("index.html", "css/*", "js/*", "data/*"):
+        assert f"--include {inc}" in calls[0]
+    assert calls[0].index("--exclude *") < calls[0].index("--include")   # exclude-all first
+    assert "--delete" in calls[0] and "--cache-control no-cache" in calls[0]
+    assert "--dryrun" not in calls[0]
+    assert "beta/index.html" in r.stdout
+
+
+@pytest.mark.skipif(not (REPO / "web" / "data" / "catalog.json").exists(),
+                    reason="web/data/catalog.json not built (python3 web/make_index.py)")
+def test_sync_beta_dryrun_and_bucket(tmp_path):
+    _, r = _run_beta(tmp_path, "--dryrun", "other-bucket")
+    assert r.returncode == 0, r.stdout + r.stderr
+    calls = _calls(tmp_path, "aws ")
+    assert len(calls) == 1 and "s3://other-bucket/beta" in calls[0] and "--dryrun" in calls[0]
+
+
+def test_sync_beta_rejects_unknown_option(tmp_path):
+    _, r = _run_beta(tmp_path, "--delete")
+    assert r.returncode != 0
+    assert _calls(tmp_path, "aws ") == []

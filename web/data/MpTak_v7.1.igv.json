@@ -1,0 +1,18 @@
+{
+  "id": "https://zenigoke-catalog-dsc.s3.ap-northeast-1.amazonaws.com/references/MpTak_v7.1/MpTak_v7.1.igv.json",
+  "name": "M. polymorpha MpTak v7.1",
+  "fastaURL": "https://zenigoke-catalog-dsc.s3.ap-northeast-1.amazonaws.com/references/MpTak_v7.1/MpTak_v7.1.fa",
+  "indexURL": "https://zenigoke-catalog-dsc.s3.ap-northeast-1.amazonaws.com/references/MpTak_v7.1/MpTak_v7.1.fa.fai",
+  "chromosomeOrder": "chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chrV,chrU",
+  "defaultPos": "chr6:2440000-2490000",
+  "tracks": [
+    {
+      "name": "MpTak v7.1 genes (MarpolBase)",
+      "format": "gff3",
+      "url": "https://zenigoke-catalog-dsc.s3.ap-northeast-1.amazonaws.com/references/MpTak_v7.1/MpTak_v7.1.genes.gff3.gz",
+      "indexed": false,
+      "searchable": true,
+      "displayMode": "EXPANDED"
+    }
+  ]
+}

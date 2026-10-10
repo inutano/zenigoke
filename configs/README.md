@@ -64,6 +64,18 @@ the experiment title (genotype read as target, H3 controls, a replicate
 mismatch); source: `docs/qc/2026-10-01-chip-atlas-mapping-qc.md` §5.3, plus
 the synonym H2AK119ub → H2Aub for SRX9800295.
 
+## institutions.tsv
+
+Submitting institution of each study (BioProject), for the "Where the data
+come from" map and the "Country / region" filter of the web UI (`web/`).
+Columns: `study`, `institution`, `short` (matrix column label), `city`,
+`country` (country or region), `lat`, `lon`.
+Hand-curated on 2026-10-10 from the SRA/ENA `center_name` of each study
+(`web/meta/studies.tsv`); coordinates are the institution's campus.
+`center_name` is whoever submitted the data, which is not always the lab of
+the paper. `web/make_index.py` warns about studies without a row; they are
+left off the map.
+
 ## select-config-*.json
 
 Field definitions for bsllmner-mk2 (`scripts/curate-metadata.sh`,
