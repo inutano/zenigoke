@@ -17,13 +17,13 @@ compute-backed feature (enrichment analysis).
                          │                                                                          │
   build machine          │   GitHub (inutano/zenigoke)              S3  zenigoke-catalog-dsc        │
   (ota-ws-01)            │   ├─ main  ──push──▶ Actions              (chiba-dsc, ap-northeast-1)     │
-  /data1/zenigoke/output │   │        pages.yml: build report/       ├─ output/  37 GB tracks       │
+  /data1/zenigoke/output │   │        pages.yml: web UI + report/    ├─ output/  37 GB tracks       │
         │  aws s3 sync    │   │        with S3-flavoured track URLs   │           (bw/bb/peaks/beds) │
         └────────────────┼──▶│        └─push─▶ gh-pages ─▶ Pages     ├─ data|db backup             │
                          │                    │                       └─ references/chrom.sizes      │
                          │   viewer's browser ─┤                                   ▲                 │
                          │   https://inutano.github.io/zenigoke/                   │ IGV streams     │
-                         │        ├─ matrix / browse / sample pages ───────────────┘ tracks (Range)  │
+                         │        ├─ web UI (index.html) + sample pages ───────────┘ tracks (Range)  │
                          │        └─ enrichment.html ──POST /api/enrichment──┐                        │
                          └──────────────────────────────────────────────────┼────────────────────────┘
                                                                             │
@@ -192,8 +192,8 @@ ssh -i ~/.ssh/zenigoke.pem ubuntu@35.73.72.14 'systemctl is-active zenigoke cadd
 ```bash
 export AWS_PROFILE=chiba-dsc
 python3 scripts/build-catalog-db.py                       # rebuild db/kknmsmd.db
-bash deploy/aws/02-sync-data.sh                            # re-sync changed tracks + DB
-git push origin main                                      # → Actions rebuilds Pages
+bash deploy/aws/02-sync-data.sh                            # re-sync changed tracks + DB + web UI index
+gh workflow run pages.yml --ref main                      # → Actions rebuilds Pages
 # Mode B: refresh peaks on the EC2
 ssh -i ~/.ssh/zenigoke.pem ubuntu@35.73.72.14 \
   'cd zenigoke && git pull && bash deploy/aws/04-ec2-bootstrap.sh && sudo systemctl restart zenigoke'

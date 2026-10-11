@@ -33,3 +33,6 @@ report/bundles/
 
 # web UI (web/): generated at deploy time by web/make_index.py
 web/data/catalog.json
+
+# scripts/assemble-site.sh output (CI publishes it; local previews only)
+/site/

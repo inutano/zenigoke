@@ -45,16 +45,17 @@ When pipeline outputs change or the DB is rebuilt:
 
 ```bash
 python3 scripts/build-catalog-db.py          # refresh db/kknmsmd.db
-bash deploy/aws/02-sync-data.sh              # uploads output/ AND db/kknmsmd.db
-git push origin main                          # → GitHub Actions rebuilds Pages
+bash deploy/aws/02-sync-data.sh              # uploads output/, db/kknmsmd.db AND db/catalog.json
+gh workflow run pages.yml --ref main          # → GitHub Actions rebuilds Pages (a push to main does too)
 ```
 
-The workflow downloads `db/kknmsmd.db` from S3 at build time, so the DB on S3 is the source of truth for the published site.
+The workflow downloads `db/kknmsmd.db` and `db/catalog.json` from S3 at build time, so S3 is the source of truth for the published data. `catalog.json` (the web UI index) is built by `web/make_index.py` inside `02-sync-data.sh`, because it needs the pipeline output tree and `metadata/biosamples/`, which only the build machine has.
 
-## Web UI (`web/`, on S3)
+## Web UI staging copy (`web/`, on S3)
 
-The new web interface is published from the same bucket as the data, under
-`beta/`:
+The web UI is the root of the GitHub Pages site (see below). To check a change
+before pushing to main, publish a staging copy from the same bucket as the
+data, under `beta/`:
 
 ```bash
 AWS_PROFILE=chiba-dsc bash deploy/aws/02-sync-data.sh      # outputs + DB first
@@ -72,9 +73,10 @@ The script rebuilds `web/data/catalog.json` from `db/kknmsmd.db` and syncs
 
 1. Checks out the repo on `ubuntu-latest`.
 2. Installs Python + `requirements.txt`.
-3. Downloads `s3://zenigoke-catalog-dsc/db/kknmsmd.db` (anonymous HTTPS — bucket is public-read).
+3. Downloads `s3://zenigoke-catalog-dsc/db/kknmsmd.db` and `db/catalog.json` (anonymous HTTPS — bucket is public-read).
 4. Runs `python3 scripts/build-catalog-pages.py` with `ZENIGOKE_DATA_BASE` set to the S3 HTTPS URL, so each per-sample track link in the static pages points at S3.
-5. Publishes `report/` to the `gh-pages` branch via `peaceiris/actions-gh-pages`.
+5. Runs `scripts/assemble-site.sh report db/catalog.json site`: the web UI (`web/`) becomes `index.html`; the catalog pages (per-sample pages, methods, summary, enrichment) keep their paths; the old landing page becomes `classic.html`.
+6. Publishes `site/` to the `gh-pages` branch via `peaceiris/actions-gh-pages`.
 
 No AWS credentials needed in GitHub Secrets — the bucket is public-read.
 

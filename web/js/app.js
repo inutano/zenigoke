@@ -857,7 +857,8 @@
           </ul>
           <a href="${LIVE}methods.html" target="_blank" rel="noopener">Full methods &amp; versions</a></section>
         <section class="card"><h2>Project records</h2>
-          <p class="small">Pipeline run summary and processing log (for maintainers): <a href="${LIVE}summary.html" target="_blank" rel="noopener">processing summary</a>.</p></section>
+          <p class="small">Pipeline run summary and processing log (for maintainers): <a href="${LIVE}summary.html" target="_blank" rel="noopener">processing summary</a>.</p>
+          <p class="small">The previous interface (matrix and browse pages) stays available: <a href="${LIVE}classic.html" target="_blank" rel="noopener">classic catalog</a>.</p></section>
       </div>`;
   }
 

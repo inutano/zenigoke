@@ -71,7 +71,9 @@ def _run_sync(tmp_path, *args):
     env = _stubs(tmp_path, ["aws"])
     (tmp_path / "out").mkdir()
     (tmp_path / "k.db").write_text("x")
-    env.update(ZENIGOKE_OUTPUT_DIR=str(tmp_path / "out"), ZENIGOKE_DB_PATH=str(tmp_path / "k.db"))
+    (tmp_path / "catalog.json").write_text("{}")
+    env.update(ZENIGOKE_OUTPUT_DIR=str(tmp_path / "out"), ZENIGOKE_DB_PATH=str(tmp_path / "k.db"),
+               ZENIGOKE_SKIP_BUILD="1", ZENIGOKE_CATALOG_PATH=str(tmp_path / "catalog.json"))
     return subprocess.run(["bash", str(SYNC), *args], env=env, capture_output=True, text=True, timeout=60)
 
 
@@ -84,6 +86,9 @@ def test_sync_data_default_run(tmp_path):
     assert "--size-only" not in sync[0]          # same-size changed files must not be skipped
     assert "--delete" not in sync[0] and not any("--dryrun" in c for c in calls)
     assert any(c.startswith("aws s3 cp") and "s3://zenigoke-catalog-dsc/db/kknmsmd.db" in c for c in calls)
+    # the Pages workflow downloads the web UI index from next to the DB
+    assert any(c.startswith(f"aws s3 cp {tmp_path / 'catalog.json'} s3://zenigoke-catalog-dsc/db/catalog.json")
+               for c in calls)
     bed = [c for c in calls if "organelle_like_regions.MpTak_v7.1.bed" in c]
     assert len(bed) == 1
     assert str(REPO / "configs" / "organelle_like_regions.MpTak_v7.1.bed") in bed[0]
@@ -95,7 +100,7 @@ def test_sync_data_dryrun_and_delete_flags(tmp_path):
     r = _run_sync(tmp_path, "--dryrun", "--delete", "other-bucket")
     assert r.returncode == 0, r.stdout + r.stderr
     calls = _calls(tmp_path, "aws ")
-    assert len(calls) == 3
+    assert len(calls) == 4
     assert all("--dryrun" in c for c in calls)               # every aws call
     assert all("s3://other-bucket/" in c for c in calls)
     assert [c.startswith("aws s3 sync") for c in calls if "--delete" in c] == [True]   # output sync only

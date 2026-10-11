@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Sync pipeline outputs, the catalog DB and the organelle-like (NUPT/NUMT)
-# blacklist BED to S3.
+# Sync pipeline outputs, the catalog DB, the web UI catalog index and the
+# organelle-like (NUPT/NUMT) blacklist BED to S3.
 # Idempotent: aws s3 sync only uploads new files and files whose size or
 # modification time changed.
 #
@@ -13,6 +13,10 @@
 #             --dryrun --delete first and read the list.
 #
 # Defaults: BUCKET_NAME=zenigoke-catalog-dsc  SOURCE=/data1/zenigoke/output
+# The web UI index (web/data/catalog.json) is rebuilt from the DB and SOURCE,
+# then uploaded to s3://$BUCKET/db/catalog.json, where the Pages workflow
+# fetches it. Set ZENIGOKE_SKIP_BUILD=1 to upload an existing index as is
+# (ZENIGOKE_CATALOG_PATH, default web/data/catalog.json).
 set -euo pipefail
 
 DRYRUN=""
@@ -22,7 +26,7 @@ for arg in "$@"; do
   case "$arg" in
     --dryrun) DRYRUN="--dryrun" ;;
     --delete) DELETE="--delete" ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     -*) echo "ERROR: unknown option $arg (expected --dryrun, --delete)"; exit 1 ;;
     *) BUCKET_ARG="$arg" ;;
   esac
@@ -57,6 +61,18 @@ if [ -f "$DB_PATH" ]; then
   aws s3 cp "$DB_PATH" "s3://${BUCKET}/db/kknmsmd.db" --region "$REGION" $DRYRUN
 else
   echo "  WARN: $DB_PATH not found — GitHub Actions workflow will fail to fetch the DB"
+fi
+
+echo "== building and uploading the web UI catalog index =="
+CATALOG="${ZENIGOKE_CATALOG_PATH:-$REPO/web/data/catalog.json}"
+if [ -z "${ZENIGOKE_SKIP_BUILD:-}" ]; then
+  python3 "$REPO/web/make_index.py" --db "$DB_PATH" --output-root "$SOURCE"
+fi
+if [ -f "$CATALOG" ]; then
+  # shellcheck disable=SC2086
+  aws s3 cp "$CATALOG" "s3://${BUCKET}/db/catalog.json" --region "$REGION" $DRYRUN
+else
+  echo "  WARN: $CATALOG not found — GitHub Actions workflow will fail to fetch the index"
 fi
 
 echo "== uploading organelle-like (NUPT/NUMT) blacklist =="

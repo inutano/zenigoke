@@ -14,6 +14,11 @@ on:
       - "scripts/build_catalog_db.py"
       - "scripts/qc_flags.py"
       - "report/assets/**"
+      - "scripts/assemble-site.sh"
+      - "web/index.html"
+      - "web/css/**"
+      - "web/js/**"
+      - "web/data/**"
       - "requirements.txt"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -40,13 +45,15 @@ jobs:
       - name: Install build deps
         run: pip install -r requirements.txt
 
-      - name: Download catalog DB from S3
+      - name: Download catalog DB and web UI index from S3
         run: |
           mkdir -p db
-          curl -fsSL \
-            "https://${ZENIGOKE_BUCKET}.s3.${AWS_REGION}.amazonaws.com/db/kknmsmd.db" \
-            -o db/kknmsmd.db
-          test -s db/kknmsmd.db
+          for f in kknmsmd.db catalog.json; do
+            curl -fsSL \
+              "https://${ZENIGOKE_BUCKET}.s3.${AWS_REGION}.amazonaws.com/db/$f" \
+              -o "db/$f"
+            test -s "db/$f"
+          done
           ls -lh db/
 
       - name: Build static catalog with S3-prefixed track URLs
@@ -62,11 +69,20 @@ jobs:
           test "$(ls report/data/matrix-*.json | wc -l)" -ge 24
           grep -q "ZENIGOKE_DATA_BASE" report/index.html
 
+      - name: Assemble the site (web UI at the root, catalog pages at their paths)
+        run: |
+          bash scripts/assemble-site.sh report db/catalog.json site
+          grep -q "Zenigoke Catalog" site/index.html
+          test -s site/classic.html
+          test -s site/methods.html
+          test -s site/enrichment.html
+          test -s site/data/catalog.json
+
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./report
+          publish_dir: ./site
           publish_branch: gh-pages
           force_orphan: true
           commit_message: "deploy: build ${{ github.sha }} → gh-pages"
