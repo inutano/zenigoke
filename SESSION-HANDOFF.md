@@ -1,8 +1,9 @@
 # Session handoff — zenigoke / kknmsmd
 
-**As of:** 2026-05-29
+**As of:** 2026-10-06
 **Repo:** `/home/inutano/work/zenigoke/` (machine `ota-ws-01`, Tailscale IP `100.88.253.33`)
-**Branch:** `main` (all phases merged + tagged; no in-flight work)
+**Branch:** `prelaunch-fixes` (pre-launch fixes + organelle-aware re-analysis, not merged;
+deploy = plan Task 13, pending owner confirmation). `main` = Phases 1–5.
 
 A multiomics catalog for *Marchantia polymorpha*. 157 SRA experiments
 (ChIP/ATAC/BS-Seq) processed against MpTak v7.1, curated via bsllmner-mk2,
@@ -24,8 +25,9 @@ analysis.
 | 3 | ✅ done 2026-05-09 | `phase3-complete` | FastAPI + matrix UI + on-demand consensus bundles + IGV port command integration. |
 | 4 | ✅ done 2026-05-15 | `phase4-complete` | Static-only S3+Pages deployment. No API server needed. ~$1/mo. Consensus track dropped (IGV stacking gives the same biological signal). |
 | 5 | ✅ done 2026-05-20 | `phase5-complete` | Enrichment analysis (ChIP-Atlas in-silico-ChIP). `POST /api/enrichment` on EC2 t3.small at `zenigoke.inutano.com`. ~$15/mo. |
+| Pre-launch fixes | ✅ re-analysis done + swapped in 2026-10-06; **deploy (Task 13) pending owner confirmation** | — (branch `prelaunch-fixes`) | Organelle-aware re-analysis of all 157 experiments (157/157 ok, incl. SRX29617452): reference `MpTak_v7.1_org` (+ chloroplast AP025455.1, mitochondrion AP025456.1; outputs nuclear-only), ChIP/ATAC fork `pipeline-v2-plant.sh` (true alignment/dup rates, peaks in 1,278 NUPT/NUMT-like regions removed), BS `abismal -R`. `sample_qc` PASS/WARN/FAIL flags (now 70/72/15), curation overrides, QC cards, shared IGV module, enrichment blacklist. Plan: `docs/superpowers/plans/2026-10-01-prelaunch-fixes.md`; review: `docs/2026-10-01-prelaunch-review.html`. |
 
-**Tests:** 51/51 pytest passing on `main`.
+**Tests:** 138 pytest + `node tests/js/igv.test.js` + `node tests/js/enrichment.test.js` passing on `prelaunch-fixes`.
 
 ---
 
@@ -47,7 +49,10 @@ scripts/
 ├── build_report.py        # ⇒ report/summary.html (Phase 1 summary)
 ├── bootstrap.sh           # Phase 1 — set up data dirs
 ├── prepare-marchantia.sh  # Phase 1 — download MpTak v7.1 + indexes
-├── pipeline-v2-bs-plant.sh    # Phase 1 — plant-fork BS-seq pipeline
+├── pipeline-v2-bs-plant.sh    # Phase 1 — plant-fork BS-seq pipeline (2026-10: abismal -R, nuclear-only counts, non-conversion)
+├── pipeline-v2-plant.sh   # 2026-10 — local ChIP/ATAC fork of upstream pipeline-v2.sh@8345566
+├── qc_flags.py            # 2026-10 — PASS/WARN/FAIL rules (thresholds from docs/qc/)
+├── cpg_coverage.py        # 2026-10 — CpG >=5x coverage of v2 BS outputs (needs pyBigWig)
 ├── run-sample.sh / run-all.sh # Phase 1 — per-sample / driver
 ├── retry-pe-fallback.sh   # Phase 1 — ENA "PAIRED but single-file" workaround
 ├── curate-metadata.sh     # Phase 2 — BioSample → bsllmner-mk2 Select
@@ -62,7 +67,7 @@ report/
 ├── summary.html, methods.html, about.html
 ├── samples/{acc}.html × 157
 ├── strategy/{chipseq,atacseq,bsseq}.html
-└── assets/{matrix.js,matrix.css,enrichment.js,style.css}
+└── assets/{igv.js,matrix.js,matrix.css,enrichment.js,style.css}
 
 tests/                     # pytest, 51 tests across 8 files
 deploy/
@@ -81,9 +86,15 @@ deploy/
 
 ```
 /data1/zenigoke/
-├── references/MpTak_v7.1/  # 2.3 GB — FASTA + indexes
-├── output/                 # 37 GB — BigWigs + peaks + methylation BEDs
-└── status/, fastq/, logs/, tmp/, bundles/   # pipeline scratch / status markers
+├── references/MpTak_v7.1/      # 2.3 GB — FASTA + indexes (Phase 1; chrom.sizes = 10 nuclear sequences)
+├── references/MpTak_v7.1_org/  # 2026-10 — + chrC (AP025455.1) + chrM (AP025456.1); used by the re-analysis
+├── output/, status/, logs/     # 38 GB — 2026-10 organelle-aware re-analysis (swapped in 2026-10-06)
+├── output-v1/, status-v1/, logs-v1/   # Phase-1 outputs, kept for comparison (37 GB)
+├── rerun-v2-src/               # frozen worktree @dd3ec32 that ran the re-analysis — leave alone
+├── rerun-v2-src-12b/           # frozen worktree @0f27734 (DDBJ/NCBI fallback) for the last 8 BS runs — leave alone
+├── tmp/qc-20261001-{chip,bs}/  # 2026-10-01 QC investigation scratch (pyBigWig in qc-20261001-bs/pylib)
+├── rerun-v2-*.log              # re-analysis driver logs
+└── fastq/, tmp/, bundles/      # pipeline scratch
 
 ~/work/zenigoke/
 ├── db/kknmsmd.db           # 160 KB — SQLite catalog (gitignored; build with scripts/build-catalog-db.py)
@@ -94,6 +105,12 @@ deploy/
 ### Docs
 
 ```
+docs/qc/
+├── 2026-10-01-{chip-atlas,bsseq}-mapping-qc.md + -qc.tsv  # QC investigation (TSVs feed sample_qc)
+├── bsseq-v2-cpgcov.tsv            # CpG coverage of the v2 BS outputs (scripts/cpg_coverage.py)
+├── 2026-10-06-v1-v2-comparison.tsv  # Phase-1 vs re-analysis, one row per accession
+└── 2026-10-06-rerun-summary.md    # findings of the re-analysis (Japanese)
+docs/2026-10-01-prelaunch-review.html  # pre-launch review (Japanese), status note in §4
 docs/superpowers/
 ├── specs/
 │   ├── 2026-04-24-zenigoke-phase1-design.md
@@ -131,7 +148,8 @@ python3 scripts/build-catalog-pages.py
 Run tests:
 
 ```bash
-python3 -m pytest tests/ -q   # expect 51 passed
+python3 -m pytest tests/ -q   # expect 138 passed
+node tests/js/igv.test.js && node tests/js/enrichment.test.js
 ```
 
 ---
@@ -175,6 +193,22 @@ git push origin main
 
 ## Where you left off
 
+### Pre-launch fixes — re-analysis swapped in, deploy pending (2026-10-06)
+
+- All 157 experiments re-analysed against `MpTak_v7.1_org`; `/data1/zenigoke/output`
+  now holds the re-analysis, the Phase-1 outputs are in `output-v1` (swap is a
+  `mv` and can be reversed). Catalog rebuilt: flags 15 FAIL / 72 WARN / 70 PASS
+  (was 18 / 72 / 67). Comparison: `docs/qc/2026-10-06-v1-v2-comparison.tsv`,
+  summary `docs/qc/2026-10-06-rerun-summary.md`.
+- **Next: plan Task 13 (deploy), only after the owner confirms** — local IGV desktop
+  check, then `AWS_PROFILE=chiba-dsc bash deploy/aws/02-sync-data.sh --dryrun --delete`
+  (expected deletes: the peak files of SRX29617446/449/455, 21 files), the real sync,
+  merge to `main`, EC2 refresh with `04-ec2-bootstrap.sh`.
+- Owner decisions open: 7 PRJNA1289709 ChIP experiments have no MACS3 peaks
+  (most likely MACS3 cannot build its shift model without the organelle artefacts;
+  the log only says no peaks were found; a `--nomodel` fallback would need a
+  pipeline change + re-run); delete `/data1/zenigoke/tmp/probe-12b`.
+
 ### Deployment status — BOTH MODES LIVE (2026-07-15)
 
 **AWS account:** everything runs in profile **`chiba-dsc`** (account `090413359466`,
@@ -209,8 +243,8 @@ git push origin main
   `report/bundles/{hash}/` manually. Phase 4+ fix: `?force=1` query param.
 - **`x == y` matrix request** returns a diagonal of no value. Phase 4 added a
   client-side guard but the API still returns the useless result.
-- **`SRX29617452`** failed in Phase 1 (malformed source data, not pipeline);
-  accepted as a 1/157 loss.
+- ~~**`SRX29617452`** failed in Phase 1~~ — completes in the 2026-10 re-analysis
+  (16 threads); it has no MACS3 peaks (see above).
 - **3 ChIP samples without antibody** after Phase 2A gap recovery (generic
   `4_TAK-1_ChIP` titles); accepted as null.
 - **CHG `hmr.bed` not produced** by `dnmtools` — pipeline catches the failure

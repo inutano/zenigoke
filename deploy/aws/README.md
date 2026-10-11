@@ -51,6 +51,23 @@ git push origin main                          # → GitHub Actions rebuilds Page
 
 The workflow downloads `db/kknmsmd.db` from S3 at build time, so the DB on S3 is the source of truth for the published site.
 
+## Web UI (`web/`, on S3)
+
+The new web interface is published from the same bucket as the data, under
+`beta/`:
+
+```bash
+AWS_PROFILE=chiba-dsc bash deploy/aws/02-sync-data.sh      # outputs + DB first
+AWS_PROFILE=chiba-dsc bash deploy/aws/05-sync-beta.sh --dryrun
+AWS_PROFILE=chiba-dsc bash deploy/aws/05-sync-beta.sh
+# → https://zenigoke-catalog-dsc.s3.ap-northeast-1.amazonaws.com/beta/index.html
+```
+
+The script rebuilds `web/data/catalog.json` from `db/kknmsmd.db` and syncs
+`index.html`, `css/`, `js/` and `data/` to `s3://zenigoke-catalog-dsc/beta/`
+(the bucket policy already makes every key public-read). Remove it with
+`aws s3 rm --recursive s3://zenigoke-catalog-dsc/beta/`.
+
 ## What the workflow does (`.github/workflows/pages.yml`)
 
 1. Checks out the repo on `ubuntu-latest`.

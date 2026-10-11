@@ -356,11 +356,13 @@ def test_layout_translated_to_se_pe():
 # Test 7: Units rendering (Item 11)
 # ---------------------------------------------------------------------------
 
-def test_mapping_rate_rendered_with_percent():
-    """mapping_rate must be rendered as 'XX.X%' not raw float."""
+def test_alignment_rate_rendered_with_percent():
+    """The alignment rate (legacy mapping_rate fallback) must be rendered as 'XX.X%'."""
     h = bcp.render_sample(CHIP_SAMPLE)
-    # Should contain the percentage string
+    # Should contain the percentage string, labelled as alignment rate
+    assert "alignment rate" in h
     assert "85.3%" in h
+    assert "mapping_rate" not in h
 
 
 def test_elapsed_min_rendered_with_min_suffix():
@@ -428,3 +430,240 @@ def test_sample_page_has_ena_sra_link():
     h = bcp.render_sample(CHIP_SAMPLE)
     assert "ebi.ac.uk/ena/browser/view/SRX_CHIP_001" in h
     assert "SRA" in h
+
+
+# ---------------------------------------------------------------------------
+# Task 9: QC display, labels, Methods text
+# ---------------------------------------------------------------------------
+
+def _qc_sample(**kw):
+    s = dict(CHIP_SAMPLE)          # existing ChIP fixture dict at the top of this file
+    s.update(accession="SRX9800303", library_strategy="ChIP-Seq", status="ok",
+             mapping_rate=None, usable_rate=9.6, aligned_pct=12.9, dup_pct=26.6,
+             qc_flag="FAIL", qc_reasons="alignment rate 12.9% < 30%; non-Marchantia DNA bacterial-like 86.0%",
+             peak_flag="OK", metrics_source="subsample-2026-10-01", usable_fragments=5600000,
+             organelle_pct=0.3, foreign_pct=86.2, peaks_in_organelle_like_pct=1.0,
+             subsample_fields="alignment rate, duplication rate, usable fragments, organelle reads, "
+                              "non-Marchantia DNA, peaks in organelle-like regions")
+    s.update(kw)
+    return s
+
+
+def test_sample_page_shows_qc_flag_and_reasons():
+    html_out = bcp.render_sample(_qc_sample())
+    assert "qc-FAIL" in html_out
+    assert "bacterial-like 86.0%" in html_out
+    assert "12.9%" in html_out
+    assert ("Estimated from a 100k-read subsample (2026-10-01 QC investigation): alignment rate, "
+            "duplication rate, organelle reads, non-Marchantia DNA.") in html_out
+    # full-run values from the TSV are attributed to the original run, not to the subsample
+    assert ("Computed by the 2026-10-01 QC investigation from the original pipeline run: "
+            "usable fragments, peaks in organelle-like regions.") in html_out
+    assert "<th>usable fragments</th><td>5.60M</td>" in html_out
+    assert "<th>peaks in organelle-like regions</th><td>1.0%</td>" in html_out
+    assert "duplication_rate" not in html_out
+
+
+def test_browse_has_qc_and_aligned_columns():
+    out = bcp.render_browse([_qc_sample()])
+    assert ">QC<" in out and ">aligned %<" in out
+    assert "mapping_rate" not in out
+
+
+def test_methods_q_value_wording_and_limitations():
+    out = bcp.render_methods()
+    assert "q &lt; 1e-5, 1e-10, 1e-20" in out
+    assert "0.05, 0.10, 0.20" not in out
+    assert "corrupted FASTQ" not in out
+    # 2026-10 re-analysis: augmented reference, forks, blacklist wording
+    assert "AP025455.1" in out and "AP025456.1" in out
+    assert "pipeline-v2-plant.sh" in out and "abismal -R" in out
+    assert "1,278 NUPT/NUMT-like regions" in out
+    assert "Until the 2026-10 re-analysis" not in out
+    assert "being re-run" not in out
+
+
+def test_qc_helpers():
+    assert bcp._qc_pill(None) == "&mdash;"
+    pill = bcp._qc_pill("WARN", "a < b")
+    assert pill == '<span class="qc qc-WARN" title="a &lt; b">WARN</span>'
+    assert bcp._qc_pill("PASS") == '<span class="qc qc-PASS">PASS</span>'
+    assert bcp._aligned({"aligned_pct": 12.9, "mapping_rate": 50.0}) == 12.9
+    assert bcp._aligned({"aligned_pct": None, "mapping_rate": 50.0}) == 50.0
+    assert bcp._aligned({"aligned_pct": 0.0, "mapping_rate": 50.0}) == 0.0
+    assert bcp._aligned({}) is None
+
+
+def test_sample_page_chip_drops_legacy_pipeline_stat_rows():
+    """ChIP/ATAC pipeline-stats card no longer carries mapping/duplication rows."""
+    out = bcp.render_sample(_qc_sample())
+    assert "mapping_rate" not in out
+    assert "reads_mapped" not in out
+    assert "Quality Control" in out
+    assert "usable reads (dedup, aligned) / trimmed" in out
+    assert "9.6%" in out
+
+
+def test_sample_page_no_subsample_note_for_pipeline_metrics():
+    out = bcp.render_sample(_qc_sample(metrics_source="pipeline", qc_flag="PASS", qc_reasons=None,
+                                       subsample_fields=None))
+    assert "qc-PASS" in out
+    assert "subsample" not in out
+    assert "2026-10-01 QC investigation" not in out
+
+
+def test_sample_page_bsseq_qc_card_and_subsample_note():
+    s = dict(BSSEQ_SAMPLE)
+    s.update(qc_flag="WARN", qc_reasons="non-conversion 3.4% > 2%",
+             aligned_pct=None, nonconv_pct=3.4, foreign_pct=1.2, frac_cpg_cov_ge5=0.0157,
+             organelle_pct=2.78, organelle_dedup_pct=52.78,
+             metrics_source="pipeline+subsample", subsample_fields="non-Marchantia reads")
+    out = bcp.render_sample(s)
+    assert "qc-WARN" in out
+    assert "non-conversion (chloroplast CHH)" in out and "3.4%" in out
+    assert "non-Marchantia reads" in out
+    assert "<th>CpGs covered ≥5×</th><td>1.6%</td>" in out
+    assert "<th>organelle share of deduplicated reads</th><td>52.8%</td>" in out
+    # v2 BS: only the non-Marchantia value is a subsample estimate (BS subsample = 250k reads)
+    assert "Estimated from a 250k-read subsample (2026-10-01 QC investigation): non-Marchantia reads." in out
+    assert "Non-conversion and non-Marchantia" not in out
+    assert "100k-read subsample" not in out
+    assert "alignment rate" not in out
+    assert "mapped pairs/reads (abismal, incl. multi-mapped)" in out
+    assert "duplication_rate" not in out
+
+
+def test_sample_page_bsseq_legacy_cpg_coverage_attributed_to_original_run():
+    s = dict(BSSEQ_SAMPLE)
+    s.update(qc_flag="WARN", qc_reasons="only 0.2% of CpGs covered ≥5×", nonconv_pct=2.3,
+             foreign_pct=1.0, frac_cpg_cov_ge5=0.002, organelle_pct=0.4, organelle_dedup_pct=None,
+             metrics_source="pipeline+subsample",
+             subsample_fields="non-conversion (chloroplast CHH), non-Marchantia reads, CpGs covered ≥5×")
+    out = bcp.render_sample(s)
+    assert ("Estimated from a 250k-read subsample (2026-10-01 QC investigation): "
+            "non-conversion (chloroplast CHH), non-Marchantia reads.") in out
+    assert ("Computed by the 2026-10-01 QC investigation from the original pipeline run: "
+            "CpGs covered ≥5×.") in out
+    assert "organelle share of deduplicated reads" not in out
+
+
+def test_sample_page_v2_chip_qc_card():
+    """v2 ChIP/ATAC: organelle on both bases, NUPT peaks removed, note names only the TSV fields."""
+    s = _qc_sample(accession="SRX22603367", library_strategy="ATAC-Seq", aligned_pct=99.6, dup_pct=52.7,
+                   usable_rate=47.1, usable_fragments=2228579, organelle_pct=61.0,
+                   organelle_dedup_pct=35.81, foreign_pct=0.5, peaks_in_organelle_like_pct=None,
+                   qc_flag="WARN", qc_reasons="duplication 52.7% ≥ 50%; organelle reads 61.0%",
+                   metrics_source="pipeline+subsample",
+                   subsample_fields="organelle reads, non-Marchantia DNA")
+    out = bcp.render_sample(s)
+    assert "<th>organelle reads</th><td>61.0%</td>" in out
+    assert "<th>organelle share of deduplicated reads</th><td>35.8%</td>" in out
+    assert "<th>peaks in organelle-like regions</th><td>removed by blacklist</td>" in out
+    assert "<th>usable fragments</th><td>2.23M</td>" in out
+    assert ("Estimated from a 100k-read subsample (2026-10-01 QC investigation): "
+            "organelle reads, non-Marchantia DNA.</p>") in out
+    assert "original pipeline run" not in out
+
+
+def test_sample_page_v2_chip_zero_peaks_says_no_peaks_called():
+    """v2 sample without q05 peaks: nothing was called, so the row must not say 'removed by blacklist'."""
+    for kw in ({"peaks_q5": 0, "peaks_q5_path": None},
+               {"peaks_q5": 0, "peaks_q5_path": "/fake/x.05_peaks.narrowPeak"},
+               {"peaks_q5": None, "peaks_q5_path": None}):
+        s = _qc_sample(accession="SRX29617447", aligned_pct=96.8, dup_pct=5.8, organelle_pct=0.44,
+                       organelle_dedup_pct=0.42, peaks_in_organelle_like_pct=None, peak_flag="NA",
+                       qc_flag="PASS", qc_reasons=None, metrics_source="pipeline+subsample",
+                       subsample_fields="organelle reads, non-Marchantia DNA", **kw)
+        out = bcp.render_sample(s)
+        assert "<th>peaks in organelle-like regions</th><td>no peaks called</td>" in out, kw
+        assert "removed by blacklist" not in out, kw
+    # a v2 sample with peaks keeps the blacklist wording; legacy samples keep the percentage
+    out = bcp.render_sample(_qc_sample(peaks_in_organelle_like_pct=None, metrics_source="pipeline+subsample"))
+    assert "<th>peaks in organelle-like regions</th><td>removed by blacklist</td>" in out
+    out = bcp.render_sample(_qc_sample(peaks_q5=0, peaks_q5_path=None))
+    assert "<th>peaks in organelle-like regions</th><td>1.0%</td>" in out
+
+
+def test_sample_page_v2_chip_without_subsample_row():
+    """A future sample: no TSV row, so no note, and the organelle row uses the dedup basis only."""
+    s = _qc_sample(aligned_pct=95.0, dup_pct=10.0, organelle_pct=None, organelle_dedup_pct=4.2,
+                   foreign_pct=None, peaks_in_organelle_like_pct=None, qc_flag="PASS", qc_reasons=None,
+                   metrics_source="pipeline", subsample_fields=None)
+    out = bcp.render_sample(s)
+    assert "<th>organelle share of deduplicated reads</th><td>4.2%</td>" in out
+    assert "<th>organelle reads</th>" not in out
+    assert "removed by blacklist" in out
+    assert "2026-10-01 QC investigation" not in out
+
+
+def test_bundle_subtitle_q_wording():
+    out = bcp.render_bundle_shell()
+    assert "' tracks · q < ' + q" in out
+    assert "q≤" not in out
+
+
+def test_strategy_pages_have_qc_and_aligned_columns():
+    chip = bcp.render_strategy("chipseq", [_qc_sample()])
+    assert ">QC<" in chip and ">aligned %<" in chip
+    assert "mapping_rate" not in chip
+    assert 'class="qc qc-FAIL"' in chip
+    atac = bcp.render_strategy("atacseq", [ATAC_SAMPLE])
+    assert ">QC<" in atac and ">aligned %<" in atac
+    bs = bcp.render_strategy("bsseq", [BSSEQ_SAMPLE])
+    assert ">QC<" in bs and ">mapped %<" in bs
+    assert "mapping_rate" not in bs and ">aligned %<" not in bs
+
+
+def test_browse_sort_columns_stay_consistent_after_qc_insert():
+    out = bcp.render_browse([_qc_sample()])
+    head = out.split("<thead>")[1].split("</thead>")[0]
+    ths = [h for h in head.split("<th")[1:]]
+    n_th = len(ths)
+    row = out.split("<tbody>")[1].split("</tbody>")[0]
+    n_td = row.count("<td")
+    assert n_th == n_td
+    # data-col indices are 0..n-1 positions of the header cells
+    for i, h in enumerate(ths):
+        if "data-col" in h:
+            assert f'data-col="{i}"' in h
+
+
+def test_summary_uses_alignment_rate():
+    samples = [_qc_sample(), dict(CHIP_SAMPLE)]
+    out = bcp.render_summary(samples)
+    assert "Avg alignment rate" in out
+    assert "Avg mapping rate" not in out
+    # mean of aligned_pct 12.9 and legacy mapping_rate fallback 85.3 = 49.1
+    assert "49.1%" in out
+
+
+# ---------------------------------------------------------------------------
+# IGV hand-off wiring: igv.js must load before its consumers; matrix.js must
+# not be loaded where the matrix UI does not exist (enrichment) because its
+# top-level init() used to throw "xsel is null" there.
+# ---------------------------------------------------------------------------
+
+def _script_order(html: str) -> list:
+    import re
+    return re.findall(r"<script src='assets/([\w.]+)'", html)
+
+
+def test_igv_js_loaded_before_consumers():
+    assert _script_order(bcp.render_index([])) == ["igv.js", "matrix.js"]
+    assert _script_order(bcp.render_enrichment_page()) == ["igv.js", "enrichment.js"]
+    # bundle.html keeps matrix.js for resolveStrategy
+    assert _script_order(bcp.render_bundle_shell()) == ["igv.js", "matrix.js"]
+
+
+def test_bundle_and_enrichment_get_data_base(monkeypatch):
+    monkeypatch.setenv("ZENIGOKE_DATA_BASE", "https://b.s3.ap-northeast-1.amazonaws.com/")
+    for html in (bcp.render_index([]), bcp.render_enrichment_page(), bcp.render_bundle_shell()):
+        assert "window.ZENIGOKE_DATA_BASE='https://b.s3.ap-northeast-1.amazonaws.com/'" in html
+        assert html.index("ZENIGOKE_DATA_BASE=") < html.index("assets/igv.js")
+
+
+def test_bundle_group_spec_parse_keeps_colons_in_labels():
+    # Labels like "ChIP:H3K27me3 × WT" contain ':'; the accession list follows the LAST ':'.
+    html = bcp.render_bundle_shell()
+    assert "part.lastIndexOf(':')" in html
+    assert "part.split(':')" not in html

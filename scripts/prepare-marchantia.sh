@@ -89,5 +89,33 @@ if [ ! -f macs_gsize.txt ]; then
   echo "   MACS3 genome size: $(cat macs_gsize.txt)"
 fi
 
+echo "== step 7: organelle-augmented reference (nuclear + chrC + chrM) =="
+# MpTak_v7.1 deliberately omits the organelle genomes. Without them, organelle
+# reads land on nuclear NUPT/NUMT copies (spurious peaks, false low methylation).
+# Outputs stay nuclear-only: chrom.sizes here is the nuclear list.
+ORG_DIR="$DATA_ROOT/references/MpTak_v7.1_org"
+mkdir -p "$ORG_DIR"
+fetch_org() {  # $1 = NCBI accession, $2 = sequence name to use
+  local out="$ORG_DIR/$2.fa"
+  [ -s "$out" ] && return 0
+  curl -fsSL "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=nuccore&id=$1&rettype=fasta&retmode=text" \
+    | sed "1s/.*/>$2 $1/" > "$out.tmp"
+  mv "$out.tmp" "$out"
+}
+fetch_org AP025455.1 chrC   # Tak-1 chloroplast, 120,306 bp
+fetch_org AP025456.1 chrM   # Tak-1 mitochondrion, 186,197 bp
+if [ ! -f "$ORG_DIR/MpTak_v7.1_org.fa" ]; then
+  cat MpTak_v7.1.fa "$ORG_DIR/chrC.fa" "$ORG_DIR/chrM.fa" | awk 'NF' > "$ORG_DIR/MpTak_v7.1_org.fa"
+fi
+ORG_DOCKER="docker run --rm -u $(id -u):$(id -g) -v $ORG_DIR:/ref -w /ref"
+[ -f "$ORG_DIR/MpTak_v7.1_org.fa.fai" ] || $ORG_DOCKER "$CHIP_IMG" samtools faidx MpTak_v7.1_org.fa
+cut -f1,2 "$ORG_DIR/MpTak_v7.1_org.fa.fai" > "$ORG_DIR/chrom.sizes.all"
+cp chrom.sizes "$ORG_DIR/chrom.sizes"
+cp macs_gsize.txt "$ORG_DIR/macs_gsize.txt"
+[ -f "$ORG_DIR/MpTak_v7.1_org.fa.bwt.2bit.64" ] || $ORG_DOCKER "$CHIP_IMG" bwa-mem2 index MpTak_v7.1_org.fa
+[ -f "$ORG_DIR/MpTak_v7.1_org.abismal.idx" ] || \
+  $ORG_DOCKER "$BS_IMG" dnmtools abismalidx MpTak_v7.1_org.fa MpTak_v7.1_org.abismal.idx
+echo "   org reference: $(wc -l < "$ORG_DIR/chrom.sizes.all") sequences ($(wc -l < "$ORG_DIR/chrom.sizes") nuclear)"
+
 echo "== done =="
 ls -lh "$REF_DIR"

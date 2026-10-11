@@ -1,0 +1,15 @@
+# Manual fixes where bsllmner-mk2 output contradicts the SRA experiment title.
+# Source: docs/qc/2026-10-01-chip-atlas-mapping-qc.md §5.3 (+ SRX9800295 synonym).
+accession	field	value	reason
+SRX29617466	antibody_target	H3	title "H3 ChIP-seq in wild-type Tak1"
+SRX29617480	antibody_target	H3	title "H3 ChIP-seq in Mpez1,Mpknox2 double mutant"
+SRX29617481	antibody_target	H3	title "H3 ChIP-seq in Mpez1,Mpknox2 double mutant"
+SRX8604219	antibody_target	WRKY14	title "6_WRKY14-RFP_ChIP_rep2" (rep1 SRX8604213 is WRKY14)
+SRX9800283	antibody_target	H3	title "Upp5_H3_R2"
+SRX9800284	antibody_target	H3	title "H2AK115RK116R_H3_R1" (genotype, not target)
+SRX9800286	antibody_target	H3	title "H2AK119R_H3_R1" (genotype, not target)
+SRX9800287	antibody_target	H3	title "H2AK119R_H3_R2" (genotype, not target)
+SRX9800295	antibody_target	H2Aub	title "H2AK119R_H2Aub_R2"; normalise synonym H2AK119ub
+SRX9800300	antibody_target	H3K27me3	title "H2AK115RK116R_H3K27me3_R1_L16"
+SRX9800302	antibody_target	H3K27me3	title "H2AK119R_H3K27me3__R1"
+SRX9800303	antibody_target	H3K27me3	title "H2AK119R_H3K27me3_R2_L16"

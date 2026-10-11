@@ -9,7 +9,21 @@ set -euo pipefail
 
 CSV="${CSV:-zenigoke_sra_experiments.csv}"
 DATA_ROOT="${DATA_ROOT:-/data1/zenigoke}"
-STATUS_DIR="$DATA_ROOT/status"
+
+# OUTPUT_ROOT, STATUS_DIR and LOG_DIR are all-or-none: a half-set trio would
+# silently send the unset ones to the published Phase-1 dirs under $DATA_ROOT.
+given=""; missing=""
+for v in OUTPUT_ROOT STATUS_DIR LOG_DIR; do
+  if [ -n "${!v:-}" ]; then given="$given $v"; else missing="$missing $v"; fi
+done
+if [ -n "$given" ] && [ -n "$missing" ]; then
+  echo "ERROR: set all of OUTPUT_ROOT STATUS_DIR LOG_DIR or none (set:$given; missing:$missing)" >&2
+  exit 2
+fi
+OUTPUT_ROOT="${OUTPUT_ROOT:-$DATA_ROOT/output}"
+STATUS_DIR="${STATUS_DIR:-$DATA_ROOT/status}"
+LOG_DIR="${LOG_DIR:-$DATA_ROOT/logs}"
+export OUTPUT_ROOT STATUS_DIR LOG_DIR
 RESUME=0
 ONLY=""
 FILTER=""

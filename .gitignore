@@ -30,3 +30,6 @@ db/*.db
 report/output
 .superpowers/
 report/bundles/
+
+# web UI (web/): generated at deploy time by web/make_index.py
+web/data/catalog.json

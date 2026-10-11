@@ -4,9 +4,10 @@
 // scripts/build_static_data.py) instead of /api/* — works on GitHub Pages
 // with no backend.
 //
-// Per-sample track URLs point at ZENIGOKE_DATA_BASE (configured at build
-// time via window.ZENIGOKE_DATA_BASE injected into index.html). When unset
-// (local dev served by FastAPI), URLs are relative to the catalog server.
+// Per-sample track URLs are built by ZenigokeIGV (assets/igv.js, loaded before
+// this file) from window.ZENIGOKE_DATA_BASE, which the build injects into the
+// page. When unset (local dev served by FastAPI), URLs are relative to the
+// catalog server.
 
 const state = {
   axes: null,
@@ -14,12 +15,6 @@ const state = {
   selectedCells: new Map(),  // key "x|y" -> {x, y, n, accessions}
   groupColors: ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"],
 };
-
-const DATA_BASE = (window.ZENIGOKE_DATA_BASE || "").replace(/\/$/, "");
-
-function dataUrl(path) {
-  return DATA_BASE ? `${DATA_BASE}${path}` : path;
-}
 
 async function init() {
   const r = await fetch("data/axes.json");
@@ -146,45 +141,6 @@ function renderSelection() {
 // tracks side by side, which is enough for the comparison workflows the
 // catalog targets.
 
-const Q_LABEL = {"1e-5": "05", "1e-10": "10", "1e-20": "20"};
-
-function tracksForAccession(acc, sample, color) {
-  // `sample` is optional metadata pulled from the cell entry. We don't have
-  // library_strategy in the matrix payload, so we infer it from the axis
-  // value when possible, otherwise probe by URL pattern by trying ChIP first.
-  // Simplest robust approach: assume ChIP if the cell's x or y is "ChIP:*",
-  // ATAC if "ATAC-Seq", BS-seq if "Bisulfite-Seq". Caller passes the resolved
-  // strategy as `sample.strategy`.
-  const strat = sample.strategy;
-  const q = sample.q_cutoff || "1e-10";
-  if (strat === "ChIP-Seq" || strat === "ATAC-Seq") {
-    const sub = strat === "ChIP-Seq" ? "chipseq" : "atacseq";
-    const qLabel = Q_LABEL[q] || "10";
-    return [
-      {name: `${acc} bigwig`,
-       url: dataUrl(`output/${sub}/${acc}/${acc}.bw`),
-       type: "wig", color: color},
-      {name: `${acc} peaks q≤${q}`,
-       url: dataUrl(`output/${sub}/${acc}/${acc}.${qLabel}_peaks.narrowPeak`),
-       type: "annotation", color: color},
-    ];
-  }
-  if (strat === "Bisulfite-Seq") {
-    return [
-      {name: `${acc} CpG methyl`,
-       url: dataUrl(`output/bsseq/${acc}/${acc}.CpG.methyl.bw`),
-       type: "wig", color: color},
-      {name: `${acc} CHG methyl`,
-       url: dataUrl(`output/bsseq/${acc}/${acc}.CHG.methyl.bw`),
-       type: "wig", color: color},
-      {name: `${acc} CHH methyl`,
-       url: dataUrl(`output/bsseq/${acc}/${acc}.CHH.methyl.bw`),
-       type: "wig", color: color},
-    ];
-  }
-  return [];
-}
-
 function resolveStrategy(cell) {
   // The matrix payload has cell.x / cell.y; one or the other carries the
   // experiment_type when that axis is in use. Otherwise we fall back to the
@@ -206,7 +162,8 @@ function buildTracks(groups, qCutoff) {
     const strat = resolveStrategy(cellLike);
     if (!strat) continue;
     for (const acc of g.accessions) {
-      tracks.push(...tracksForAccession(acc, {strategy: strat, q_cutoff: qCutoff}, color));
+      tracks.push(...ZenigokeIGV.tracksForAccession(
+        acc, {strategy: strat, q_cutoff: qCutoff}, color, window.ZENIGOKE_DATA_BASE || ""));
     }
   }
   return tracks;
@@ -218,17 +175,13 @@ async function sendToIgv(groups) {
   const tracks = buildTracks(groups, "1e-10");
   if (tracks.length === 0) {
     btn.textContent = "No track URLs (pick a cell with experiment_type on either axis)";
+    btn.disabled = false;
     return;
   }
   btn.textContent = "Loading into IGV…";
-  const param = tracks.map(t => t.url + "|" + t.name).join(",");
-  try {
-    await fetch("http://localhost:60151/load?file=" + encodeURIComponent(param));
-    btn.textContent = "✔ Sent to IGV";
-  } catch (e) {
-    btn.textContent = "Could not reach IGV (port :60151 not enabled?)";
-    btn.disabled = false;
-  }
+  const r = await ZenigokeIGV.send(tracks);
+  btn.textContent = r.ok ? "✔ " + r.message : "✖ " + r.message;
+  btn.disabled = false;
 }
 
 function openDrilldown(groups) {
@@ -249,7 +202,11 @@ function escapeAttr(s) {
   return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
-window.tracksForAccession = tracksForAccession;
+// Kept for pages that predate ZenigokeIGV; `sample` is {strategy, q_cutoff}.
+window.tracksForAccession = (acc, sample, color) => ZenigokeIGV.tracksForAccession(
+  acc, {strategy: sample.strategy, q_cutoff: sample.q_cutoff}, color, window.ZENIGOKE_DATA_BASE || "");
 window.resolveStrategy = resolveStrategy;
 
-init();
+// bundle.html loads this file only for resolveStrategy/tracksForAccession; the
+// matrix UI exists on index.html alone.
+if (document.getElementById("x-axis-select")) init();

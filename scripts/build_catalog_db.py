@@ -7,24 +7,39 @@ Public API:
   parse_chipseq_stats(row)     -> dict
   parse_bsseq_stats(row)       -> dict
   parse_curation_json(d)       -> dict
+  load_curation_overrides(path) -> Dict[str, Dict[str, str]]
+  apply_curation_overrides(curation, overrides) -> dict
   collect_sample_rows(...)     -> Iterator[dict]
   populate_sample(conn, row)
   populate_curation(conn, accession, curation)
   populate_chipseq(conn, accession, output_dir, stats)
   populate_bsseq(conn, accession, output_dir, stats)
-  build(data_root, metadata_root, db_path)
+  load_qc_tsvs(qc_dir)         -> Dict[str, dict]
+  load_cpgcov_tsv(path)        -> Dict[str, Optional[float]]
+  qc_row(row, tsv, cpgcov_ge5=None) -> dict
+  populate_qc(conn, accession, qc)
+  build(data_root, metadata_root, db_path, qc_dir=None, curation_overrides=None, cpgcov_tsv=None)
   main(argv=None)
 """
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import os
 import pathlib
 import sqlite3
+import sys
 from typing import Any, Dict, Iterator, List, Optional
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import qc_flags  # noqa: E402
+
 log = logging.getLogger(__name__)
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+CHIP_QC_LABELS = qc_flags.CHIP_QC_LABELS
+BS_QC_LABELS = qc_flags.BS_QC_LABELS
 
 STRATEGY_DIRS = {
     "ChIP-Seq": "chipseq",
@@ -43,10 +58,12 @@ CREATE TABLE sample (
   status               TEXT NOT NULL,
   layout               TEXT,
   fastq_size           TEXT,
+  reads_raw            INTEGER,
   reads_filtered       INTEGER,
   reads_mapped         INTEGER,
   mapping_rate         REAL,
   duplication_rate     REAL,
+  usable_rate          REAL,
   elapsed_min          REAL,
   biosample_accession  TEXT,
   output_dir           TEXT NOT NULL
@@ -90,6 +107,24 @@ CREATE TABLE sample_bsseq (
   chh_methyl_bw_path   TEXT,
   chh_cover_bw_path    TEXT
 );
+CREATE TABLE sample_qc (
+  accession                    TEXT PRIMARY KEY REFERENCES sample(accession),
+  qc_flag                      TEXT NOT NULL,
+  qc_reasons                   TEXT,
+  peak_flag                    TEXT,
+  aligned_pct                  REAL,
+  dup_pct                      REAL,
+  usable_fragments             INTEGER,
+  organelle_pct                REAL,
+  organelle_dedup_pct          REAL,
+  foreign_pct                  REAL,
+  peaks_in_organelle_like_pct  REAL,
+  nonconv_pct                  REAL,
+  frac_cpg_cov_ge5             REAL,
+  metrics_source               TEXT,
+  subsample_fields             TEXT
+);
+CREATE INDEX idx_qc_flag ON sample_qc(qc_flag);
 CREATE INDEX idx_curation_tissue   ON sample_curation(tissue);
 CREATE INDEX idx_curation_stage    ON sample_curation(developmental_stage);
 CREATE INDEX idx_curation_strain   ON sample_curation(genotype_strain);
@@ -130,10 +165,12 @@ except Exception as _e:
 
     def _chipseq_fields_fn(row: List[str]) -> Dict[str, str]:  # fallback
         keys = [
-            "sample", "layout", "fastq_size", "reads_raw", "reads_filt",
-            "reads_mapped", "mapping_rate", "duplication_rate",
+            "sample", "layout", "fastq_size", "v1_placeholder", "reads_raw",
+            "reads_filt", "rate7", "rate8",
             "dedup_bam_size", "bedgraph_size", "bigwig_size",
             "peaks_q5", "peaks_q10", "peaks_q20", "elapsed_min",
+            "format", "aligned_reads", "duplicate_reads", "usable_reads",
+            "organelle_usable_reads", "nuclear_usable_reads",
         ]
         return {k: v for k, v in zip(keys, row)}
 
@@ -143,6 +180,7 @@ except Exception as _e:
             "mapping_rate", "methylation_rate", "cpg_coverage",
             "hmr_count", "pmd_count", "hypermr_count", "elapsed_min",
             "mean_cpg", "mean_chg", "mean_chh",
+            "format", "unique_rate", "organelle_pct", "nonconv",
         ]
         return {k: v for k, v in zip(keys, row)}
 
@@ -170,26 +208,49 @@ def _safe_int(v: Any) -> Optional[int]:
 # ---------------------------------------------------------------------------
 
 def parse_chipseq_stats(row: List[str]) -> Dict[str, Any]:
-    """Parse a 15-column ChIP/ATAC stats TSV row into a typed dict."""
-    fields = _chipseq_fields_fn(row)
-    return {
-        "layout": fields.get("layout"),
-        "fastq_size": fields.get("fastq_size"),
-        "reads_filtered": _safe_int(fields.get("reads_filt")),
-        "reads_mapped": _safe_int(fields.get("reads_mapped")),
-        "mapping_rate": _safe_float(fields.get("mapping_rate")),
-        "duplication_rate": _safe_float(fields.get("duplication_rate")),
-        "elapsed_min": _safe_float(fields.get("elapsed_min")),
-        "peaks_q5": _safe_int(fields.get("peaks_q5")),
-        "peaks_q10": _safe_int(fields.get("peaks_q10")),
-        "peaks_q20": _safe_int(fields.get("peaks_q20")),
+    """Parse a ChIP/ATAC stats.tsv row (legacy 15-col or zenigoke-v2 21-col)."""
+    f = _chipseq_fields_fn(row)
+    reads_filt = _safe_int(f.get("reads_filt"))
+    out: Dict[str, Any] = {
+        "layout": f.get("layout"),
+        "fastq_size": f.get("fastq_size"),
+        "reads_raw": _safe_int(f.get("reads_raw")),
+        "reads_filtered": reads_filt,
+        "elapsed_min": _safe_float(f.get("elapsed_min")),
+        "peaks_q5": _safe_int(f.get("peaks_q5")),
+        "peaks_q10": _safe_int(f.get("peaks_q10")),
+        "peaks_q20": _safe_int(f.get("peaks_q20")),
     }
+    if f.get("format") == "zenigoke-v2":
+        usable = _safe_int(f.get("usable_reads"))
+        out.update({
+            "format": "zenigoke-v2",
+            "mapping_rate": _safe_float(f.get("rate7")),
+            "duplication_rate": _safe_float(f.get("rate8")),
+            "reads_mapped": _safe_int(f.get("aligned_reads")),
+            "usable_reads": usable,
+            "organelle_usable_reads": _safe_int(f.get("organelle_usable_reads")),
+            "nuclear_usable_reads": _safe_int(f.get("nuclear_usable_reads")),
+            "usable_rate": (100.0 * usable / reads_filt) if usable and reads_filt else None,
+        })
+    else:
+        # Legacy upstream: col 7 is usable %, not an alignment rate; col 8 is
+        # 100 - col 7 and mixes unmapped with duplicates, so it is dropped.
+        out.update({
+            "format": "legacy",
+            "mapping_rate": None,
+            "duplication_rate": None,
+            "reads_mapped": None,
+            "usable_rate": _safe_float(f.get("rate7")),
+        })
+    return out
 
 
 def parse_bsseq_stats(row: List[str]) -> Dict[str, Any]:
     """Parse a 15-column BS-seq stats TSV row into a typed dict."""
     fields = _bsseq_fields_fn(row)
     return {
+        "format": "zenigoke-v2" if fields.get("format") == "zenigoke-v2" else "legacy",
         "layout": fields.get("layout"),
         "fastq_size": fields.get("fastq_size"),
         "reads_filtered": _safe_int(fields.get("read_count")),
@@ -197,6 +258,9 @@ def parse_bsseq_stats(row: List[str]) -> Dict[str, Any]:
         "mapping_rate": _safe_float(fields.get("mapping_rate")),
         "duplication_rate": None,  # not in bsseq stats
         "elapsed_min": _safe_float(fields.get("elapsed_min")),
+        "unique_rate": _safe_float(fields.get("unique_rate")) if fields.get("format") == "zenigoke-v2" else None,
+        "organelle_pct": _safe_float(fields.get("organelle_pct")) if fields.get("format") == "zenigoke-v2" else None,
+        "nonconv": _safe_float(fields.get("nonconv")) if fields.get("format") == "zenigoke-v2" else None,
         "mean_cpg": _safe_float(fields.get("mean_cpg")),
         "mean_chg": _safe_float(fields.get("mean_chg")),
         "mean_chh": _safe_float(fields.get("mean_chh")),
@@ -209,8 +273,40 @@ def parse_bsseq_stats(row: List[str]) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Curation parsing
+# Curation parsing and overrides
 # ---------------------------------------------------------------------------
+
+CURATION_FIELDS = ("tissue", "cell_type", "developmental_stage",
+                   "genotype_strain", "treatment", "antibody_target")
+
+
+def load_curation_overrides(path: Optional[pathlib.Path]) -> Dict[str, Dict[str, str]]:
+    """Load curation overrides from TSV file (accession -> {field: value}).
+
+    Returns empty dict if path is None or doesn't exist.
+    Format: comment lines (start with #), then header row, then data rows.
+    """
+    out: Dict[str, Dict[str, str]] = {}
+    if path is None or not path.exists():
+        return out
+    with path.open() as fh:
+        rows = csv.DictReader((ln for ln in fh if not ln.startswith("#")), delimiter="\t")
+        for r in rows:
+            out.setdefault(r["accession"], {})[r["field"]] = r["value"]
+    return out
+
+
+def apply_curation_overrides(curation: Dict[str, Any], overrides: Dict[str, str]) -> Dict[str, Any]:
+    """Apply curation overrides to a curation dict.
+
+    Returns a new dict (does not mutate the input).
+    Raises ValueError if any override field is unknown.
+    """
+    bad = set(overrides) - set(CURATION_FIELDS)
+    if bad:
+        raise ValueError(f"unknown curation field(s): {sorted(bad)}")
+    return {**curation, **overrides}
+
 
 def parse_curation_json(d: Dict[str, Any]) -> Dict[str, Any]:
     """Merge extract + extract_experiment into a flat curation dict.
@@ -396,10 +492,12 @@ def collect_sample_rows(
             "status": status,
             "layout": None,
             "fastq_size": None,
+            "reads_raw": None,
             "reads_filtered": None,
             "reads_mapped": None,
             "mapping_rate": None,
             "duplication_rate": None,
+            "usable_rate": None,
             "elapsed_min": None,
             "biosample_accession": biosample,
             "output_dir": output_dir,
@@ -417,10 +515,12 @@ def collect_sample_rows(
                 row.update({
                     "layout": parsed.get("layout"),
                     "fastq_size": parsed.get("fastq_size"),
+                    "reads_raw": parsed.get("reads_raw"),
                     "reads_filtered": parsed.get("reads_filtered"),
                     "reads_mapped": parsed.get("reads_mapped"),
                     "mapping_rate": parsed.get("mapping_rate"),
                     "duplication_rate": parsed.get("duplication_rate"),
+                    "usable_rate": parsed.get("usable_rate"),
                     "elapsed_min": parsed.get("elapsed_min"),
                 })
                 row["_chipseq_stats"] = parsed
@@ -464,10 +564,10 @@ def populate_sample(conn: sqlite3.Connection, row: Dict[str, Any]) -> None:
         """
         INSERT OR REPLACE INTO sample(
           accession, library_strategy, status, layout,
-          fastq_size, reads_filtered, reads_mapped,
-          mapping_rate, duplication_rate, elapsed_min,
+          fastq_size, reads_raw, reads_filtered, reads_mapped,
+          mapping_rate, duplication_rate, usable_rate, elapsed_min,
           biosample_accession, output_dir
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (
             row["accession"],
@@ -475,10 +575,12 @@ def populate_sample(conn: sqlite3.Connection, row: Dict[str, Any]) -> None:
             row["status"],
             row.get("layout"),
             row.get("fastq_size"),
+            row.get("reads_raw"),
             row.get("reads_filtered"),
             row.get("reads_mapped"),
             row.get("mapping_rate"),
             row.get("duplication_rate"),
+            row.get("usable_rate"),
             row.get("elapsed_min"),
             row.get("biosample_accession"),
             row["output_dir"],
@@ -587,6 +689,163 @@ def populate_bsseq(
 
 
 # ---------------------------------------------------------------------------
+# QC flags (sample_qc)
+# ---------------------------------------------------------------------------
+
+QC_TSV_NAMES = {"chip": "2026-10-01-chip-atlas-qc.tsv", "bs": "2026-10-01-bsseq-qc.tsv"}
+
+
+def load_qc_tsvs(qc_dir: Optional[pathlib.Path]) -> Dict[str, Dict[str, str]]:
+    """accession -> raw TSV row (with '_kind' = chip|bs). Empty if qc_dir is None."""
+    out: Dict[str, Dict[str, str]] = {}
+    if qc_dir is None:
+        return out
+    for kind, name in QC_TSV_NAMES.items():
+        p = qc_dir / name
+        if not p.exists():
+            continue
+        with p.open() as fh:
+            for r in csv.DictReader(fh, delimiter="\t"):
+                out[r["accession"]] = {**r, "_kind": kind}
+    return out
+
+
+def load_cpgcov_tsv(path: Optional[pathlib.Path]) -> Dict[str, Optional[float]]:
+    """accession -> frac_cpg_cov_ge5 from scripts/cpg_coverage.py output (v2 BS outputs).
+
+    Empty if path is None or missing; a blank value maps to None.
+    """
+    out: Dict[str, Optional[float]] = {}
+    if path is None or not path.exists():
+        return out
+    with path.open() as fh:
+        for r in csv.DictReader(fh, delimiter="\t"):
+            out[r["accession"]] = _safe_float(r.get("frac_cpg_cov_ge5"))
+    return out
+
+
+def _metrics_source(pipeline_used: bool, has_tsv: bool) -> Optional[str]:
+    """Provenance of the numbers behind a sample's QC flag."""
+    if pipeline_used:
+        return "pipeline+subsample" if has_tsv else "pipeline"
+    return "subsample-2026-10-01" if has_tsv else None
+
+
+def _subsample_fields(labels: Dict[str, str], values: Dict[str, Any], from_tsv: set) -> Optional[str]:
+    """", "-joined labels of displayed metrics whose stored value came from the 2026-10-01 TSV."""
+    out = [label for key, label in labels.items()
+           if key in from_tsv and _safe_float(values.get(key)) is not None]
+    return ", ".join(out) or None
+
+
+def qc_row(row: Dict[str, Any], tsv: Optional[Dict[str, str]],
+           cpgcov_ge5: Optional[float] = None) -> Dict[str, Any]:
+    """Merge pipeline stats (preferred when zenigoke-v2) with subsample estimates.
+
+    Pipeline values override TSV values only when they are present (not None).
+    metrics_source records whether any pipeline-derived value was used;
+    subsample_fields names the displayed metrics whose value is the TSV's.
+
+    Organelle: organelle_pct keeps the TSV basis (share of fastp-passed reads,
+    which the >= 20% rule was set on); the zenigoke-v2 share of deduplicated
+    records goes to organelle_dedup_pct and is flagged only without a TSV value.
+    cpgcov_ge5 is this accession's value from scripts/cpg_coverage.py; v2 BS
+    rows use it (or None), never the TSV value measured on the legacy bigWig.
+    """
+    strat, status = row["library_strategy"], row["status"]
+    if strat in ("ChIP-Seq", "ATAC-Seq"):
+        tsv_m = qc_flags.chip_metrics_from_tsv(tsv) if tsv else {}
+        m = dict(tsv_m)
+        m["status"] = status
+        st = row.get("_chipseq_stats", {})
+        pipeline_used = False
+        replaced: set = set()
+        org_dedup = None
+        if st.get("format") == "zenigoke-v2":
+            pe = row.get("layout") == "1"
+            nuc = st.get("nuclear_usable_reads")
+            usable = st.get("usable_reads")
+            org = st.get("organelle_usable_reads")
+            org_dedup = 100.0 * org / usable if org is not None and usable else None
+            pipeline = {
+                "aligned_pct": st.get("mapping_rate"),
+                "dup_pct": st.get("duplication_rate"),
+                "usable_fragments": None if nuc is None else (nuc / 2 if pe else nuc),
+                "peaks_q05": st.get("peaks_q5"),
+            }
+            for k, v in pipeline.items():
+                if v is not None:
+                    m[k] = v
+                    replaced.add(k)
+            # v2 peaks are blacklist-filtered: there is no overlap to measure, and the
+            # TSV value describes the legacy peaks, so it must not flag a v2 sample.
+            m["peaks_in_organelle_like_pct"] = None
+            replaced.add("peaks_in_organelle_like_pct")
+            m["organelle_dedup_pct"] = org_dedup
+            pipeline_used = True
+        source = _metrics_source(pipeline_used, tsv is not None)
+        flag, reasons, peak_flag = qc_flags.chip_flag(m)
+        hum, bac = _safe_float(m.get("human_pct")), _safe_float(m.get("bacterial_pct"))
+        foreign = None if hum is None and bac is None else (hum or 0.0) + (bac or 0.0)
+        out = {"qc_flag": flag, "qc_reasons": "; ".join(reasons), "peak_flag": peak_flag,
+               "aligned_pct": _safe_float(m.get("aligned_pct")), "dup_pct": _safe_float(m.get("dup_pct")),
+               "usable_fragments": _safe_int(_safe_float(m.get("usable_fragments"))),
+               "organelle_pct": _safe_float(m.get("organelle_pct")),
+               "organelle_dedup_pct": _safe_float(org_dedup), "foreign_pct": foreign,
+               "peaks_in_organelle_like_pct": _safe_float(m.get("peaks_in_organelle_like_pct")),
+               "nonconv_pct": None, "frac_cpg_cov_ge5": None, "metrics_source": source}
+        from_tsv = (set(tsv_m) - replaced) | ({"foreign_pct"} if tsv else set())
+        out["subsample_fields"] = _subsample_fields(CHIP_QC_LABELS, out, from_tsv)
+        return out
+    tsv_m = qc_flags.bs_metrics_from_tsv(tsv) if tsv else {}
+    m = dict(tsv_m)
+    m["status"] = status
+    st = row.get("_bsseq_stats", {})
+    pipeline_used = False
+    replaced = set()
+    for k in ("mean_cpg", "mean_chg", "mean_chh", "nonconv"):
+        if st.get(k) is not None:
+            m[k] = st[k]
+            replaced.add(k)
+            pipeline_used = True
+    if st.get("format") == "zenigoke-v2":
+        m["frac_cpg_cov_ge5"] = cpgcov_ge5
+        replaced.add("frac_cpg_cov_ge5")
+        pipeline_used = pipeline_used or cpgcov_ge5 is not None
+    # Two organelle bases: TSV pct_reads_chrC = % of subsample reads on chrC (organelle_pct);
+    # pipeline col 18 = % of dedup records on non-nuclear sequences (organelle_dedup_pct).
+    organelle_dedup = _safe_float(st.get("organelle_pct"))
+    if organelle_dedup is not None:
+        pipeline_used = True
+    flag, reasons = qc_flags.bs_flag(m)
+    nc = _safe_float(m.get("nonconv"))
+    out = {"qc_flag": flag, "qc_reasons": "; ".join(reasons), "peak_flag": None,
+           "aligned_pct": None, "dup_pct": None, "usable_fragments": None,
+           "organelle_pct": _safe_float((tsv or {}).get("pct_reads_chrC")),
+           "organelle_dedup_pct": organelle_dedup,
+           "foreign_pct": _safe_float(m.get("foreign_pct")),
+           "peaks_in_organelle_like_pct": None,
+           "nonconv_pct": nc * 100 if nc is not None else None,
+           "frac_cpg_cov_ge5": _safe_float(m.get("frac_cpg_cov_ge5")),
+           "metrics_source": _metrics_source(pipeline_used, tsv is not None)}
+    out["subsample_fields"] = _subsample_fields(BS_QC_LABELS, {**out, "nonconv": nc}, set(tsv_m) - replaced)
+    return out
+
+
+QC_COLUMNS = ["qc_flag", "qc_reasons", "peak_flag", "aligned_pct", "dup_pct", "usable_fragments",
+              "organelle_pct", "organelle_dedup_pct", "foreign_pct", "peaks_in_organelle_like_pct",
+              "nonconv_pct", "frac_cpg_cov_ge5", "metrics_source", "subsample_fields"]
+
+
+def populate_qc(conn: sqlite3.Connection, accession: str, q: Dict[str, Any]) -> None:
+    cols = QC_COLUMNS
+    conn.execute(
+        f"INSERT OR REPLACE INTO sample_qc(accession, {', '.join(cols)}) VALUES ({', '.join('?' * (len(cols) + 1))})",
+        [accession] + [q.get(c) for c in cols],
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main build function
 # ---------------------------------------------------------------------------
 
@@ -594,9 +853,18 @@ def build(
     data_root: pathlib.Path,
     metadata_root: pathlib.Path,
     db_path: pathlib.Path,
+    qc_dir: Optional[pathlib.Path] = None,
+    curation_overrides: Optional[pathlib.Path] = None,
+    cpgcov_tsv: Optional[pathlib.Path] = None,
 ) -> Dict[str, int]:
     """Drop + recreate the DB, populate all tables. Returns row count dict."""
     output_root = data_root / "output"
+    qc = load_qc_tsvs(qc_dir)
+    cpgcov = load_cpgcov_tsv(cpgcov_tsv)
+    overrides = load_curation_overrides(curation_overrides)
+    if qc_dir is not None and not any((qc_dir / n).exists() for n in QC_TSV_NAMES.values()):
+        log.warning("qc-dir %s contains none of the QC TSVs %s; sample_qc will use pipeline stats only",
+                    qc_dir, sorted(QC_TSV_NAMES.values()))
 
     # Drop and recreate
     if db_path.exists():
@@ -613,6 +881,7 @@ def build(
         "sample_curation": 0,
         "sample_chipseq": 0,
         "sample_bsseq": 0,
+        "sample_qc": 0,
     }
 
     for row in collect_sample_rows(data_root, output_root, metadata_root):
@@ -627,7 +896,20 @@ def build(
             log.error("Failed to insert sample row for %s: %s", acc, e)
             continue
 
+        if (strat == "Bisulfite-Seq" and status == "ok"
+                and row.get("_bsseq_stats", {}).get("format") == "zenigoke-v2"
+                and cpgcov.get(acc) is None):
+            log.warning("no CpG >=5x coverage for v2 BS sample %s in %s; run scripts/cpg_coverage.py "
+                        "on the v2 outputs (the 2026-10-01 TSV value is not used for v2)", acc, cpgcov_tsv)
+        try:
+            populate_qc(conn, acc, qc_row(row, qc.get(acc), cpgcov.get(acc)))
+            counts["sample_qc"] += 1
+        except Exception as e:
+            log.warning("Failed to insert QC row for %s: %s", acc, e)
+
         curation = row.get("_curation", {})
+        if acc in overrides:
+            curation = apply_curation_overrides(curation, overrides[acc])
         if curation:
             try:
                 populate_curation(conn, acc, curation)
@@ -663,27 +945,45 @@ def build(
 # CLI entry point
 # ---------------------------------------------------------------------------
 
-def main(argv: Optional[List[str]] = None) -> int:
+def _arg_parser():
     import argparse
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     p = argparse.ArgumentParser(
         description="Build SQLite catalog DB from zenigoke pipeline outputs."
     )
     p.add_argument("--data-root", default="/data1/zenigoke")
     p.add_argument("--metadata-root", default="metadata")
     p.add_argument("--output", default="db/kknmsmd.db")
-    args = p.parse_args(argv)
+    # Repo inputs are anchored at the repo root, not the working directory.
+    p.add_argument("--qc-dir", default=str(REPO_ROOT / "docs" / "qc"),
+                   help="directory with the 2026-10-01 QC TSVs (default: <repo>/docs/qc)")
+    p.add_argument("--curation-overrides", default=str(REPO_ROOT / "configs" / "curation_overrides.tsv"),
+                   help="TSV file with curation field overrides (default: <repo>/configs/curation_overrides.tsv)")
+    p.add_argument("--cpgcov-tsv", default=str(REPO_ROOT / "docs" / "qc" / "bsseq-v2-cpgcov.tsv"),
+                   help="CpG coverage of v2 BS outputs from scripts/cpg_coverage.py "
+                        "(default: <repo>/docs/qc/bsseq-v2-cpgcov.tsv)")
+    return p
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    args = _arg_parser().parse_args(argv)
 
     data_root = pathlib.Path(args.data_root)
     metadata_root = pathlib.Path(args.metadata_root)
     db_path = pathlib.Path(args.output)
+    curation_overrides_path = pathlib.Path(args.curation_overrides)
+    cpgcov_path = pathlib.Path(args.cpgcov_tsv)
 
     print(f"Building catalog DB: {db_path}")
     print(f"  data-root:     {data_root}")
     print(f"  metadata-root: {metadata_root}")
+    print(f"  qc-dir:        {args.qc_dir}")
+    print(f"  curation-overrides: {curation_overrides_path}")
+    print(f"  cpgcov-tsv:    {cpgcov_path}{'' if cpgcov_path.exists() else ' (missing)'}")
 
-    counts = build(data_root, metadata_root, db_path)
+    counts = build(data_root, metadata_root, db_path, qc_dir=pathlib.Path(args.qc_dir),
+                   curation_overrides=curation_overrides_path, cpgcov_tsv=cpgcov_path)
 
     print("\nRow counts:")
     for table, n in counts.items():

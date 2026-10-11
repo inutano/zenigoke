@@ -85,6 +85,12 @@ def test_bundle_builds_consensus_for_two_chip_samples(client, tmp_path):
     assert "hash" in body and len(body["hash"]) == 16
     assert any(t["name"].startswith("consensus ChIP-Seq") for t in body["tracks"])
     assert sum(1 for t in body["tracks"] if "bigwig" in t["name"]) == 2
+    # per-sample peak tracks point at the bigBed the pipeline publishes, not the raw narrowPeak
+    peak_urls = [t["url"] for t in body["tracks"] if "peaks" in t["name"]]
+    assert sorted(peak_urls) == [
+        "http://test.example/output/chipseq/SRX_A/SRX_A.10.bb",
+        "http://test.example/output/chipseq/SRX_B/SRX_B.10.bb",
+    ]
 
 
 def test_bundle_cache_hit_skips_bedtools(client, tmp_path):
@@ -108,3 +114,10 @@ def test_bundle_skips_consensus_for_single_sample(client):
 def test_bundle_rejects_empty(client):
     r = client.post("/api/bundle", json={"accessions": [], "q_cutoff": "1e-10", "groups": []})
     assert r.status_code in (400, 422)
+
+
+def test_track_names_use_q_less_than_wording():
+    import igv_url_helper as h
+    tracks = h.per_sample_tracks({"accession": "SRX_A", "library_strategy": "ChIP-Seq"}, "1e-10", "#000")
+    assert tracks[1]["name"] == "SRX_A peaks q < 1e-10"
+    assert h.consensus_track("ChIP-Seq", "abc", "1e-5", 3)["name"] == "consensus ChIP-Seq q < 1e-5 (n=3)"

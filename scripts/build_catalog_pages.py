@@ -22,7 +22,11 @@ import pathlib
 import re
 import shutil
 import sqlite3
+import sys
 from typing import Any, Optional
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import qc_flags  # noqa: E402  (shared QC display labels)
 
 # Strategy display names to URL slug mapping
 STRATEGY_SLUGS: dict[str, str] = {
@@ -85,6 +89,54 @@ def _fmt_frac_pct(x: Any, decimals: int = 1) -> str:
         return f"{float(x) * 100:.{decimals}f}%"
     except (ValueError, TypeError):
         return _dash(x)
+
+
+def _qc_pill(flag: Optional[str], reasons: Optional[str] = None) -> str:
+    """Coloured PASS/WARN/FAIL/NA pill; the reasons (if any) become the tooltip."""
+    if not flag:
+        return "&mdash;"
+    title = f' title="{_esc(reasons)}"' if reasons else ""
+    return f'<span class="qc qc-{_esc(flag)}"{title}>{_esc(flag)}</span>'
+
+
+def _aligned(s: dict) -> Optional[float]:
+    """True alignment rate: sample_qc.aligned_pct, else the legacy sample.mapping_rate."""
+    a = s.get("aligned_pct")
+    return a if a is not None else s.get("mapping_rate")
+
+
+def _fmt_millions(x: Any) -> str:
+    """Format a count in millions (e.g. 3.23M), or em-dash."""
+    if x is None or x == "":
+        return "&mdash;"
+    try:
+        return f"{float(x) / 1e6:.2f}M"
+    except (ValueError, TypeError):
+        return _dash(x)
+
+
+# Of the 2026-10-01 TSV values, these were computed on the original (legacy)
+# pipeline run's outputs/logs rather than on the read subsample.
+_QC_FULL_RUN_LABELS = (qc_flags.CHIP_QC_LABELS["usable_fragments"],
+                       qc_flags.CHIP_QC_LABELS["peaks_in_organelle_like_pct"],
+                       qc_flags.BS_QC_LABELS["frac_cpg_cov_ge5"])
+
+
+def _qc_provenance_note(sample: dict) -> str:
+    """Name the displayed QC values that come from the 2026-10-01 investigation (none -> no note)."""
+    fields = [f for f in (sample.get("subsample_fields") or "").split(", ") if f]
+    sub = [f for f in fields if f not in _QC_FULL_RUN_LABELS]
+    full = [f for f in fields if f in _QC_FULL_RUN_LABELS]
+    # subsample sizes: ChIP/ATAC first 100k reads, BS first 250k reads (pairs)
+    size = "250k" if sample.get("library_strategy") == "Bisulfite-Seq" else "100k"
+    out = ""
+    if sub:
+        out += (f'<p class="note">Estimated from a {size}-read subsample (2026-10-01 QC investigation): '
+                f"{_esc(', '.join(sub))}.</p>\n")
+    if full:
+        out += ('<p class="note">Computed by the 2026-10-01 QC investigation from the original pipeline run: '
+                f"{_esc(', '.join(full))}.</p>\n")
+    return out
 
 
 def _fmt_min(x: Any, decimals: int = 1) -> str:
@@ -411,6 +463,7 @@ def render_index(samples: list[dict]) -> str:
 
     parts.append(_data_base_inline_script())
     parts.append(_api_base_inline_script())
+    parts.append("<script src='assets/igv.js' defer></script>\n")
     parts.append("<script src='assets/matrix.js' defer></script>\n")
     parts.append(_page_footer())
     return "".join(parts)
@@ -429,7 +482,8 @@ def _sample_row_html(s: dict, link_prefix: str = "samples/") -> str:
     dev_stage = s.get("developmental_stage") or ""
     strain = s.get("genotype_strain") or ""
     antibody = s.get("antibody_target") or ""
-    mapping = _fmt(s.get("mapping_rate"), 1)
+    qc = _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))
+    aligned = _fmt(_aligned(s), 1)
     elapsed = _fmt(s.get("elapsed_min"), 1)
 
     status_class = "ok" if status == "ok" else "failed"
@@ -440,11 +494,12 @@ def _sample_row_html(s: dict, link_prefix: str = "samples/") -> str:
         f'<td><a href="{link_prefix}{_esc(acc)}.html">{_esc(acc)}</a></td>\n'
         f"<td>{_esc(strat)}</td>\n"
         f'<td class="{status_class}">{_esc(status)}</td>\n'
+        f"<td>{qc}</td>\n"
         f"<td>{_dash(tissue)}</td>\n"
         f"<td>{_dash(dev_stage)}</td>\n"
         f"<td>{_dash(strain)}</td>\n"
         f"<td>{_dash(antibody)}</td>\n"
-        f"<td>{_esc(mapping)}</td>\n"
+        f"<td>{_esc(aligned)}</td>\n"
         f"<td>{_esc(elapsed)}</td>\n"
         f"<td>{sample_link}</td>\n"
         f"</tr>\n"
@@ -520,8 +575,8 @@ def render_browse(samples: list[dict]) -> str:
     # Samples table with sortable headers
     parts.append('<table id="samples-table">\n')
     parts.append("<thead>\n<tr>\n")
-    cols = ["accession", "strategy", "status", "tissue", "dev_stage",
-            "strain", "antibody", "mapping_rate", "elapsed_min", ""]
+    cols = ["accession", "strategy", "status", "QC", "tissue", "dev_stage",
+            "strain", "antibody", "aligned %", "elapsed_min", ""]
     for i, col in enumerate(cols):
         if col:
             parts.append(f'<th data-col="{i}">{_esc(col)}</th>\n')
@@ -582,6 +637,48 @@ def render_sample(sample: dict) -> str:
     title_body_parts.append("</div>\n")
     parts.append("".join(title_body_parts))
 
+    # Quality Control card (flag + reasons + estimated metrics)
+    qc_rows: list[tuple[str, str]] = [("QC flag", _qc_pill(sample.get("qc_flag")))]
+    if sample.get("qc_reasons"):
+        qc_rows.append(("reasons", "<br>".join(_esc(r) for r in sample["qc_reasons"].split("; "))))
+    org_dedup = sample.get("organelle_dedup_pct")
+    if strat != "Bisulfite-Seq":
+        L = qc_flags.CHIP_QC_LABELS
+        dup = sample.get("dup_pct") if sample.get("dup_pct") is not None else sample.get("duplication_rate")
+        # zenigoke-v2 stats (metrics_source 'pipeline...') mean peaks were blacklist-filtered
+        v2 = (sample.get("metrics_source") or "").startswith("pipeline")
+        pov = sample.get("peaks_in_organelle_like_pct")
+        if pov is None and v2:
+            # no q < 1e-5 peaks (or no peaks file): nothing was called, so nothing was removed
+            no_peaks = not sample.get("peaks_q5") or not sample.get("peaks_q5_path")
+            pov_cell = "no peaks called" if no_peaks else "removed by blacklist"
+        else:
+            pov_cell = _fmt_pct(pov)
+        qc_rows += [
+            (L["aligned_pct"], _fmt_pct(_aligned(sample))),
+            (L["dup_pct"], _fmt_pct(dup)),
+            ("usable reads (dedup, aligned) / trimmed", _fmt_pct(sample.get("usable_rate"))),
+            (L["usable_fragments"], _fmt_millions(sample.get("usable_fragments"))),
+        ]
+        if sample.get("organelle_pct") is not None or org_dedup is None:
+            qc_rows.append((L["organelle_pct"], _fmt_pct(sample.get("organelle_pct"))))
+        if org_dedup is not None:
+            qc_rows.append((qc_flags.ORGANELLE_DEDUP_LABEL, _fmt_pct(org_dedup)))
+        qc_rows += [
+            (L["foreign_pct"], _fmt_pct(sample.get("foreign_pct"))),
+            (L["peaks_in_organelle_like_pct"], pov_cell),
+        ]
+    else:
+        L = qc_flags.BS_QC_LABELS
+        qc_rows += [
+            (L["nonconv"], _fmt_pct(sample.get("nonconv_pct"))),
+            (L["foreign_pct"], _fmt_pct(sample.get("foreign_pct"))),
+            (L["frac_cpg_cov_ge5"], _fmt_frac_pct(sample.get("frac_cpg_cov_ge5"))),
+        ]
+        if org_dedup is not None:
+            qc_rows.append((qc_flags.ORGANELLE_DEDUP_LABEL, _fmt_pct(org_dedup)))
+    parts.append(_card("Quality Control", _kv_table(qc_rows) + _qc_provenance_note(sample)))
+
     # Curated metadata card (Item 8: em-dash for empty cells)
     curation_rows = [
         ("tissue", _dash(sample.get("tissue"))),
@@ -606,18 +703,17 @@ def render_sample(sample: dict) -> str:
         )
         parts.append(f'<div class="card failed-card">\n<h2>Did Not Complete</h2>\n{fail_body}\n</div>\n')
     else:
-        # Pipeline stats card (Item 2: layout SE/PE; Item 9: hide duplication_rate for BS-seq;
-        #                      Item 11: units; Item 15: fastq_size + reads_mapped)
+        # Pipeline stats card (Item 2: layout SE/PE; Item 11: units; Item 15: fastq_size)
         pipeline_rows: list[tuple[str, str]] = [
             ("layout", _layout_label(sample.get("layout"))),
             ("fastq_size", _fmt_size(sample.get("fastq_size"))),
             ("reads_filtered", _dash(sample.get("reads_filtered"))),
         ]
-        if strat != "Bisulfite-Seq":
-            pipeline_rows.append(("reads_mapped", _dash(sample.get("reads_mapped"))))
-        pipeline_rows.append(("mapping_rate", _fmt_pct(sample.get("mapping_rate"))))
-        if strat != "Bisulfite-Seq":  # Item 9
-            pipeline_rows.append(("duplication_rate", _fmt_pct(sample.get("duplication_rate"))))
+        # ChIP/ATAC alignment/duplication figures live in the QC card; only the
+        # BS-seq abismal mapped figure stays here (relabelled: it includes multi-mapped).
+        if strat == "Bisulfite-Seq":
+            pipeline_rows.append(("mapped pairs/reads (abismal, incl. multi-mapped)",
+                                  _fmt_pct(sample.get("mapping_rate"))))
         pipeline_rows.append(("elapsed_min", _fmt_min(sample.get("elapsed_min"))))
         parts.append(_card("Pipeline Stats", _kv_table(pipeline_rows)))
 
@@ -688,10 +784,11 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
     base_cols: list[tuple[str, Any]] = [
         ("accession", _acc_link),
         ("status", _status_cell),
+        ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
         ("tissue", lambda s: _dash(s.get("tissue"))),
         ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
         ("strain", lambda s: _dash(s.get("genotype_strain"))),
-        ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+        ("aligned %", lambda s: _fmt_pct(_aligned(s))),
         ("elapsed_min", lambda s: _fmt_min(s.get("elapsed_min"))),
         ("", _arrow_link),
     ]
@@ -701,11 +798,12 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
         return [
             ("accession", _acc_link),
             ("status", _status_cell),
+            ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
             ("tissue", lambda s: _dash(s.get("tissue"))),
             ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
             ("strain", lambda s: _dash(s.get("genotype_strain"))),
             ("antibody", lambda s: _dash(s.get("antibody_target"))),
-            ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+            ("aligned %", lambda s: _fmt_pct(_aligned(s))),
             ("peaks_q5", lambda s: _dash(s.get("peaks_q5"))),
             ("elapsed_min", lambda s: _fmt_min(s.get("elapsed_min"))),
             ("", _arrow_link),
@@ -715,10 +813,11 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
         return [
             ("accession", _acc_link),
             ("status", _status_cell),
+            ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
             ("tissue", lambda s: _dash(s.get("tissue"))),
             ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
             ("strain", lambda s: _dash(s.get("genotype_strain"))),
-            ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+            ("aligned %", lambda s: _fmt_pct(_aligned(s))),
             ("peaks_q5", lambda s: _dash(s.get("peaks_q5"))),
             ("elapsed_min", lambda s: _fmt_min(s.get("elapsed_min"))),
             ("", _arrow_link),
@@ -728,10 +827,11 @@ def _strategy_columns(slug: str) -> list[tuple[str, Any]]:
         return [
             ("accession", _acc_link),
             ("status", _status_cell),
+            ("QC", lambda s: _qc_pill(s.get("qc_flag"), s.get("qc_reasons"))),
             ("tissue", lambda s: _dash(s.get("tissue"))),
             ("dev_stage", lambda s: _dash(s.get("developmental_stage"))),
             ("strain", lambda s: _dash(s.get("genotype_strain"))),
-            ("mapping_rate", lambda s: _fmt_pct(s.get("mapping_rate"))),
+            ("mapped %", lambda s: _fmt_pct(s.get("mapping_rate"))),
             ("mean_CpG", lambda s: _fmt_frac_pct(s.get("mean_cpg"))),
             ("mean_CHG", lambda s: _fmt_frac_pct(s.get("mean_chg"))),
             ("mean_CHH", lambda s: _fmt_frac_pct(s.get("mean_chh"))),
@@ -847,13 +947,13 @@ def render_summary(samples: list[dict]) -> str:
 
         # Stats summary for ok samples
         if s_ok:
-            mapping_rates = [s.get("mapping_rate") for s in s_ok if s.get("mapping_rate") is not None]
+            mapping_rates = [_aligned(s) for s in s_ok if _aligned(s) is not None]
             elapsed = [s.get("elapsed_min") for s in s_ok if s.get("elapsed_min") is not None]
             avg_map = sum(mapping_rates) / len(mapping_rates) if mapping_rates else None
             avg_elapsed = sum(elapsed) / len(elapsed) if elapsed else None
 
             parts.append(f"<p>Successful: {len(s_ok)} samples. "
-                         f"Avg mapping rate: {_fmt(avg_map, 1)}%. "
+                         f"Avg alignment rate: {_fmt(avg_map, 1)}%. "
                          f"Avg elapsed: {_fmt(avg_elapsed, 1)} min.</p>\n")
 
         parts.append("</div>\n")
@@ -882,8 +982,16 @@ def render_methods() -> str:
         "<p><strong>Marchantia polymorpha</strong> MpTak v7.1 standard genome, "
         "downloaded 2026-04-25 from "
         '<a href="https://marchantia.info/data/MpTak_v7.1_standard_genome/" target="_blank">'
-        "marchantia.info</a>. "
+        "marchantia.info</a>, "
+        "+ Tak-1 chloroplast <strong>AP025455.1</strong> (<code>chrC</code>) "
+        "+ mitochondrion <strong>AP025456.1</strong> (<code>chrM</code>). "
+        "Reads are aligned to this augmented reference so that organelle reads map to the "
+        "organelle genomes rather than to nuclear copies of organelle DNA; all outputs "
+        "(bigWig, peaks, methylation tracks) are nuclear-only (the 10 MpTak v7.1 sequences). "
         "MACS3 effective genome size: <strong>248,042,180 bp</strong>.</p>\n"
+        "<p>Organelle-like regions: 1,278 NUPT/NUMT-like regions (311,657 bp) of the nuclear "
+        "genome where organelle reads map when the organelle genomes are absent "
+        "(<code>configs/organelle_like_regions.MpTak_v7.1.bed</code>).</p>\n"
     )
     parts.append("</div>\n")
 
@@ -891,13 +999,17 @@ def render_methods() -> str:
     parts.append('<div class="card">\n')
     parts.append("<h2>ChIP-Seq &amp; ATAC-Seq Pipeline</h2>\n")
     parts.append(
-        "<p>Container: <code>ghcr.io/inutano/chip-atlas-pipeline-v2:v1.0.0</code></p>\n"
+        "<p>Container: <code>ghcr.io/inutano/chip-atlas-pipeline-v2:v1.0.0</code> "
+        "+ local fork <code>pipeline-v2-plant.sh</code> (of upstream <code>pipeline-v2.sh</code>: "
+        "alignment and duplication rates from <code>samtools markdup</code>, bigWig and MACS3 on "
+        "nuclear reads only, q &lt; 1e-5 peaks overlapping NUPT/NUMT-like regions removed before "
+        "the q &lt; 1e-10 / 1e-20 sets are written).</p>\n"
         "<p>Tools:</p>\n"
         "<ul>\n"
         "<li>fastp 1.3.1 (QC + adapter trimming)</li>\n"
         "<li>bwa-mem2 2.3 (alignment)</li>\n"
         "<li>samtools 1.23.1 (sorting, deduplication)</li>\n"
-        "<li>MACS3 3.0.4 (peak calling; q-value thresholds 0.05, 0.10, 0.20)</li>\n"
+        "<li>MACS3 3.0.4 (peak calling at q &lt; 1e-5; peak sets at q &lt; 1e-5, 1e-10, 1e-20)</li>\n"
         "<li>bedtools 2.31.1 (BED operations)</li>\n"
         "<li>UCSC tools 482 (bigWig generation)</li>\n"
         "</ul>\n"
@@ -909,7 +1021,10 @@ def render_methods() -> str:
     parts.append("<h2>Bisulfite-Seq Pipeline</h2>\n")
     parts.append(
         "<p>Container: <code>ghcr.io/inutano/chip-atlas-pipeline-v2-bs:v1.1.0</code> "
-        "+ local <code>pipeline-v2-bs-plant.sh</code> (plant fork adding CpG/CHG/CHH context).</p>\n"
+        "+ local <code>pipeline-v2-bs-plant.sh</code> (plant fork adding CpG/CHG/CHH context; "
+        "<code>abismal -R</code>, which maps reads regardless of strand orientation and rescues "
+        "libraries with R1/R2 swapped; methylation counted on nuclear sequences only; "
+        "non-conversion estimated from chloroplast CHH).</p>\n"
         "<p>Tools:</p>\n"
         "<ul>\n"
         "<li>DNMTools 1.5.1 (methylation calling)</li>\n"
@@ -940,10 +1055,27 @@ def render_methods() -> str:
     parts.append("<h2>Known Limitations</h2>\n")
     parts.append(
         "<ul>\n"
-        "<li>One failed sample (SRX29617452): bwa-mem2 produced SAM with SEQ/QUAL "
-        "length mismatch — likely a corrupted FASTQ in SRA. Manual inspection needed.</li>\n"
-        "<li>ATAC-Seq samples may have lower mapping rates due to plastid/mitochondrial reads; "
-        "no organelle filtering applied.</li>\n"
+        "<li>Peaks (q &lt; 1e-5) overlapping the 1,278 NUPT/NUMT-like regions are removed, so no "
+        "peaks are reported in those regions; the q &lt; 1e-10 / 1e-20 sets and bigBeds are "
+        "derived from the filtered set. <code>*.05_peaks.xls</code> is MACS3's raw table and is "
+        "not blacklist-filtered.</li>\n"
+        "<li>Seven low-signal ChIP experiments of PRJNA1289709 (H2A.X: SRX29617446, SRX29617447, "
+        "SRX29617448, SRX29617449; H2A: SRX29617451, SRX29617452; input: SRX29617455) have no "
+        "MACS3 peaks, most likely because MACS3 cannot build its shift model once the organelle "
+        "artefacts are gone; the pipeline log only reports that no peaks were found. "
+        "SRX29617447, SRX29617448 and SRX29617451 had no peaks in the first analysis either; "
+        "46&ndash;59% of the earlier peaks of SRX29617446, SRX29617449 and SRX29617455 lay in "
+        "organelle-like regions. Their signal tracks (bigWig) are available.</li>\n"
+        "<li>SRX29617452 failed in the first analysis (bwa-mem2 SEQ/QUAL length mismatch with 32 "
+        "threads); the failure did not reproduce in the 2026-10 re-analysis with 16 threads, and "
+        "the experiment now completes.</li>\n"
+        "<li>Ten BS-seq runs were downloaded from DDBJ (<code>.sra</code>, 9 runs) or NCBI "
+        "(SRX20670880) because the ENA API was unavailable during the 2026-10 re-analysis; all "
+        "other experiments came from ENA. NCBI serves SRX20670880 with original (non-flat) "
+        "quality scores (the earlier ENA copy had flat Q30), so fastp removes 0.47% more reads "
+        "than in the first analysis.</li>\n"
+        "<li>Several ChIP libraries contain non-Marchantia DNA (bacterial-like and human), up to "
+        "86% of reads; see each experiment's QC card.</li>\n"
         "<li>BS-seq <code>duplication_rate</code> is not computed (uses <code>dnmtools uniq</code> "
         "not samtools markdup).</li>\n"
         "<li>Antibody curation depends on SRA Experiment XML metadata quality; some targets "
@@ -1009,11 +1141,12 @@ def render_about() -> str:
         "<p>The catalog is backed by a SQLite database at <code>db/kknmsmd.db</code>. "
         "You can query it directly:</p>\n"
         '<pre class="log">'
-        "sqlite3 db/kknmsmd.db \"SELECT accession, library_strategy, mapping_rate FROM sample "
-        "WHERE library_strategy='ChIP-Seq' ORDER BY mapping_rate DESC LIMIT 10\""
+        "sqlite3 db/kknmsmd.db \"SELECT s.accession, q.qc_flag, q.aligned_pct FROM sample s "
+        "JOIN sample_qc q USING (accession) "
+        "WHERE s.library_strategy='ChIP-Seq' ORDER BY q.aligned_pct DESC LIMIT 10\""
         "</pre>\n"
         "<p>Tables: <code>sample</code>, <code>sample_curation</code>, "
-        "<code>sample_chipseq</code>, <code>sample_bsseq</code>.</p>\n"
+        "<code>sample_chipseq</code>, <code>sample_bsseq</code>, <code>sample_qc</code>.</p>\n"
     )
     parts.append("</div>\n")
 
@@ -1093,6 +1226,7 @@ def render_enrichment_page() -> str:
   <div class='card' id='results-card' style='display:none'>
     <h2>3. Results</h2>
     <p class='label' id='results-summary'></p>
+    <p class='label' id='igv-status' role='status' aria-live='polite'></p>
     <div style='overflow-x:auto'>
       <table id='results-table'>
         <thead><tr>
@@ -1117,10 +1251,12 @@ def render_enrichment_page() -> str:
   </div>
 </div>
 <script>window.ZENIGOKE_API_BASE = window.ZENIGOKE_API_BASE || '';</script>
-<script src='assets/matrix.js' defer></script>
+""")
+    parts.append(_data_base_inline_script())
+    parts.append(_api_base_inline_script())
+    parts.append("""<script src='assets/igv.js' defer></script>
 <script src='assets/enrichment.js' defer></script>
 """)
-    parts.append(_api_base_inline_script())
     parts.append(_page_footer())
     return "".join(parts)
 
@@ -1146,12 +1282,19 @@ def render_bundle_shell() -> str:
   <div class='card'>
     <h2>Actions</h2>
     <button id='igv-btn'>&#9654; Send to IGV</button>
+    <span id='igv-status' role='status' aria-live='polite'></span>
   </div>
 </div>
+""")
+    parts.append(_data_base_inline_script())
+    parts.append("""<script src='assets/igv.js' defer></script>
 <script src='assets/matrix.js' defer></script>
 <script>
-// Wait until matrix.js is loaded (it exposes tracksForAccession + dataUrl).
+// Wait until igv.js (ZenigokeIGV) and matrix.js (resolveStrategy) are loaded.
 // Build the track list from URL params and render.
+function _esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function _initBundle() {
   const params = new URLSearchParams(location.search);
   const accs = (params.get('acc') || '').split(',').filter(Boolean);
@@ -1167,7 +1310,11 @@ function _initBundle() {
   const palette = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
   if (groupSpec) {
     for (const part of groupSpec.split(';')) {
-      const [label, accStr] = part.split(':');
+      // Labels such as "ChIP:H3K27me3 × WT" contain ':'; accessions never do,
+      // so split on the last one.
+      const k = part.lastIndexOf(':');
+      if (k < 0) continue;
+      const label = part.slice(0, k), accStr = part.slice(k + 1);
       if (!accStr) continue;
       groups.push({label: label || '?', accessions: accStr.split('+').filter(Boolean)});
     }
@@ -1175,9 +1322,9 @@ function _initBundle() {
     groups.push({label: 'samples', accessions: accs});
   }
 
-  // resolveStrategy / tracksForAccession / dataUrl live in matrix.js.
-  // If matrix.js hasn't finished loading yet, retry.
-  if (typeof tracksForAccession !== 'function') {
+  // ZenigokeIGV lives in igv.js, resolveStrategy in matrix.js. Both are
+  // deferred scripts; if either hasn't finished loading yet, retry.
+  if (!window.ZenigokeIGV || !window.resolveStrategy) {
     setTimeout(_initBundle, 50);
     return;
   }
@@ -1189,27 +1336,28 @@ function _initBundle() {
     const cellLike = {x: g.label.split(' × ')[0] || '', y: g.label.split(' × ')[1] || ''};
     const strat = resolveStrategy(cellLike);
     for (const acc of g.accessions) {
-      const ts = tracksForAccession(acc, {strategy: strat, q_cutoff: q}, color);
+      const ts = ZenigokeIGV.tracksForAccession(acc, {strategy: strat, q_cutoff: q}, color, window.ZENIGOKE_DATA_BASE || '');
       tracks.push(...ts);
     }
   }
 
   document.getElementById('bundle-title').textContent = 'Bundle (' + accs.length + ' samples)';
-  document.getElementById('bundle-subtitle').textContent = tracks.length + ' tracks · q≤' + q;
+  document.getElementById('bundle-subtitle').textContent = tracks.length + ' tracks · q < ' + q;
   const tbody = document.querySelector('#tracks-table tbody');
   for (const t of tracks) {
     const row = document.createElement('tr');
     const fname = t.url.split('/').pop();
-    row.innerHTML = '<td>' + t.name + '</td>' +
-      '<td>' + t.type + '</td>' +
+    row.innerHTML = '<td>' + _esc(t.name) + '</td>' +
+      '<td>' + _esc(t.format) + '</td>' +
       '<td><span style="color:' + t.color + '">&#9608;</span></td>' +
-      '<td><a href="' + t.url + '">' + fname + '</a></td>';
+      '<td><a href="' + _esc(t.url) + '">' + _esc(fname) + '</a></td>';
     tbody.appendChild(row);
   }
+  const status = document.getElementById('igv-status');
   document.getElementById('igv-btn').onclick = () => {
-    const param = tracks.map(t => t.url + '|' + t.name).join(',');
-    fetch('http://localhost:60151/load?file=' + encodeURIComponent(param))
-      .catch(e => alert('Could not reach IGV at :60151. Make sure IGV is running with the port enabled.'));
+    if (tracks.length === 0) { status.textContent = 'No tracks to send.'; return; }
+    status.textContent = 'Loading into IGV\u2026';
+    ZenigokeIGV.send(tracks).then(r => { status.textContent = r.message; });
   };
 }
 _initBundle();
@@ -1240,10 +1388,12 @@ def _load_samples(db_path: pathlib.Path) -> list[dict]:
             s.status,
             s.layout,
             s.fastq_size,
+            s.reads_raw,
             s.reads_filtered,
             s.reads_mapped,
             s.mapping_rate,
             s.duplication_rate,
+            s.usable_rate,
             s.elapsed_min,
             s.biosample_accession,
             s.output_dir,
@@ -1276,8 +1426,23 @@ def _load_samples(db_path: pathlib.Path) -> list[dict]:
             b.chg_cover_bw_path,
             b.chg_hypermr_path,
             b.chh_methyl_bw_path,
-            b.chh_cover_bw_path
+            b.chh_cover_bw_path,
+            q.qc_flag,
+            q.qc_reasons,
+            q.peak_flag,
+            q.aligned_pct,
+            q.dup_pct,
+            q.usable_fragments,
+            q.organelle_pct,
+            q.organelle_dedup_pct,
+            q.foreign_pct,
+            q.peaks_in_organelle_like_pct,
+            q.nonconv_pct,
+            q.frac_cpg_cov_ge5,
+            q.metrics_source,
+            q.subsample_fields
         FROM sample s
+        LEFT JOIN sample_qc q USING (accession)
         LEFT JOIN sample_curation c USING (accession)
         LEFT JOIN sample_chipseq ch USING (accession)
         LEFT JOIN sample_bsseq b USING (accession)
@@ -1495,6 +1660,13 @@ code {
 
 ul { margin: 0.3rem 0 0.5rem 1.2rem; }
 ul li { margin-bottom: 0.2rem; }
+
+.qc { display: inline-block; padding: 0 .45rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+.qc-PASS { background: #e4f3e2; color: #1d6b1d; }
+.qc-WARN { background: #fbf0d6; color: #8a5a00; }
+.qc-FAIL { background: #f9e2e0; color: #a12a2a; }
+.qc-NA   { background: #eee; color: #555; }
+.note { font-size: .85rem; color: #555; }
 """
 
 

@@ -12,6 +12,7 @@ on:
       - "scripts/igv_url_helper.py"
       - "scripts/build_report.py"
       - "scripts/build_catalog_db.py"
+      - "scripts/qc_flags.py"
       - "report/assets/**"
       - "requirements.txt"
       - ".github/workflows/pages.yml"

@@ -42,14 +42,14 @@ def test_collect_samples_reads_chipseq_stats(tmp_path):
     status.mkdir()
     (status / "SRX1.ok").write_text("")
 
-    # 15-col stats TSV from pipeline-v2.sh: sample, layout, fastq_size,
-    # reads_raw, reads_filt, reads_mapped, mapping_rate, duplication_rate,
-    # dedup_bam_size, bedgraph_size, bigwig_size, peaks_q5, peaks_q10,
-    # peaks_q20, elapsed_min
+    # 15-col legacy stats TSV from upstream pipeline-v2.sh: sample, layout,
+    # fastq_size, "0" placeholder, reads_raw (before fastp), reads_filt (after
+    # fastp), usable %, 100 - usable %, dedup_bam_size, bedgraph_size,
+    # bigwig_size, peaks_q5, peaks_q10, peaks_q20, elapsed_min
     stats_dir = tmp_path / "output" / "chipseq" / "SRX1"
     _write(
         stats_dir / "SRX1.stats.tsv",
-        "SRX1\tPE\t1.2G\t10000000\t9500000\t9000000\t0.92\t0.11\t500M\t200M\t50M\t1200\t300\t80\t5.3\n",
+        "SRX1\tPE\t1.2G\t0\t10000000\t9500000\t21.3\t78.7\t500M\t200M\t50M\t1200\t300\t80\t5.3\n",
     )
 
     samples = collect_samples(
@@ -59,7 +59,10 @@ def test_collect_samples_reads_chipseq_stats(tmp_path):
         csv_path=None,
     )
     s = samples[0]
-    assert s["mapping_rate"] == "0.92"
+    assert s["v1_placeholder"] == "0"
+    assert s["reads_raw"] == "10000000"
+    assert s["reads_filt"] == "9500000"
+    assert s["rate7"] == "21.3"
     assert s["peaks_q10"] == "300"
 
 
@@ -133,7 +136,7 @@ def test_collect_samples_merges_antibody_from_extract_experiment(tmp_path):
 def test_render_html_produces_valid_html_skeleton(tmp_path):
     samples = [
         {"accession": "SRX1", "status": "ok", "strategy": "ChIP-Seq",
-         "mapping_rate": "0.92", "peaks_q10": "300", "curated": {"tissue": "thallus"}},
+         "rate7": "21.3", "peaks_q10": "300", "curated": {"tissue": "thallus"}},
         {"accession": "SRX2", "status": "failed", "strategy": "Bisulfite-Seq",
          "exit_code": "3", "log_snippet": "boom", "curated": {}},
     ]

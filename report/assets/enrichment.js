@@ -1,6 +1,6 @@
 "use strict";
 
-const API = (window.ZENIGOKE_API_BASE || "").replace(/\/$/, "");
+const API = ((typeof window !== "undefined" && window.ZENIGOKE_API_BASE) || "").replace(/\/$/, "");
 
 const ui = {
   bed:    () => document.getElementById("bed-input"),
@@ -9,6 +9,7 @@ const ui = {
   strats: () => Array.from(document.querySelectorAll(".strat:checked")).map(e => e.value),
   runBtn: () => document.getElementById("run-btn"),
   status: () => document.getElementById("run-status"),
+  igvStatus: () => document.getElementById("igv-status"),
   card:   () => document.getElementById("results-card"),
   summary: () => document.getElementById("results-summary"),
   tbody:  () => document.querySelector("#results-table tbody"),
@@ -60,76 +61,118 @@ async function run() {
   }
 }
 
+// Accession and curated metadata (LLM-extracted from third-party records) go
+// into innerHTML, so they are escaped.
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g,
+    c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+}
+
+function cell(v) { return v == null || v === "" ? "&mdash;" : escapeHtml(v); }
+
+function rowHtml(r, i) {
+  const acc = escapeHtml(r.accession);
+  return `
+      <td>${i+1}</td>
+      <td><a href="samples/${escapeHtml(encodeURIComponent(r.accession))}.html">${acc}</a></td>
+      <td>${cell(r.antibody_target)}</td>
+      <td>${cell(r.genotype_strain)}</td>
+      <td>${cell(r.developmental_stage)}</td>
+      <td>${Number(r.overlap_count)}</td>
+      <td>${Number(r.fold_enrichment).toFixed(2)}</td>
+      <td>${Number(r.p_value).toExponential(2)}</td>
+      <td>${Number(r.q_value).toExponential(2)}</td>
+      <td><a href="#" data-idx="${i}" class="row-igv">&#9654; IGV</a></td>`;
+}
+
+function summaryText(data) {
+  const ex = Number(data.n_user_regions_excluded) || 0;
+  const excluded = ex > 0 ? ` (${ex} excluded: organelle-like)` : "";
+  return `${data.n_user_regions} input regions${excluded} × ${data.n_experiments_tested} experiments`;
+}
+
 function render(data) {
   lastResults = data;
   ui.card().style.display = "";
-  ui.summary().textContent =
-    `${data.n_user_regions} input regions × ${data.n_experiments_tested} experiments`;
+  ui.summary().textContent = summaryText(data);
   const tbody = ui.tbody();
   tbody.innerHTML = "";
   data.results.forEach((r, i) => {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td><a href="samples/${r.accession}.html">${r.accession}</a></td>
-      <td>${r.antibody_target || "&mdash;"}</td>
-      <td>${r.genotype_strain || "&mdash;"}</td>
-      <td>${r.developmental_stage || "&mdash;"}</td>
-      <td>${r.overlap_count}</td>
-      <td>${r.fold_enrichment.toFixed(2)}</td>
-      <td>${r.p_value.toExponential(2)}</td>
-      <td>${r.q_value.toExponential(2)}</td>
-      <td><a href="#" data-acc="${r.accession}" data-strat="${r.library_strategy}" class="row-igv">&#9654; IGV</a></td>`;
+    tr.innerHTML = rowHtml(r, i);
     tbody.appendChild(tr);
   });
   for (const a of tbody.querySelectorAll("a.row-igv")) {
     a.addEventListener("click", e => {
       e.preventDefault();
-      const acc = a.dataset.acc, strat = a.dataset.strat;
-      sendOneToIGV(acc, strat);
+      sendOneToIGV(data.results[Number(a.dataset.idx)], a);
     });
   }
 }
 
-function sendOneToIGV(acc, strat) {
-  const tracks = window.tracksForAccession(acc, {strategy: strat, q_cutoff: ui.q().value}, "#3060a0");
-  const param = tracks.map(t => t.url + "|" + t.name).join(",");
-  fetch("http://localhost:60151/load?file=" + encodeURIComponent(param))
-    .catch(e => alert("Could not reach IGV at :60151."));
+const IGV_PALETTE = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
+
+function igvTracksFor(r, color) {
+  return ZenigokeIGV.tracksForAccession(
+    r.accession,
+    {strategy: r.library_strategy, q_cutoff: ui.q().value, label: r.antibody_target || ""},
+    color, window.ZENIGOKE_DATA_BASE || "");
+}
+
+async function sendToIGV(tracks) {
+  const el = ui.igvStatus();
+  if (tracks.length === 0) {
+    el.textContent = "No IGV tracks for these results.";
+    return {ok: false};
+  }
+  el.textContent = "Loading into IGV…";
+  const r = await ZenigokeIGV.send(tracks);
+  el.textContent = (r.ok ? "✔ " : "✖ ") + r.message;
+  return r;
+}
+
+async function sendOneToIGV(r, link) {
+  const res = await sendToIGV(igvTracksFor(r, IGV_PALETTE[0]));
+  link.innerHTML = (res.ok ? "&#10004;" : "&#10006;") + " IGV";
 }
 
 function sendTopToIGV(n) {
   if (!lastResults) return;
-  const palette = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
   const all = [];
   for (let i = 0; i < Math.min(n, lastResults.results.length); i++) {
-    const r = lastResults.results[i];
-    const tracks = window.tracksForAccession(r.accession,
-      {strategy: r.library_strategy, q_cutoff: ui.q().value},
-      palette[i % palette.length]);
-    all.push(...tracks);
+    all.push(...igvTracksFor(lastResults.results[i], IGV_PALETTE[i % IGV_PALETTE.length]));
   }
-  const param = all.map(t => t.url + "|" + t.name).join(",");
-  fetch("http://localhost:60151/load?file=" + encodeURIComponent(param))
-    .catch(e => alert("Could not reach IGV at :60151."));
+  return sendToIGV(all);
 }
 
-function downloadCsv() {
-  if (!lastResults) return;
+// RFC 4180: every field double-quoted, embedded quotes doubled (curated values contain commas)
+function csvField(v) {
+  return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+}
+
+function resultsCsv(results) {
   const hdr = ["rank","accession","library_strategy","antibody_target","genotype_strain",
                "developmental_stage","overlap_count","fold_enrichment","p_value","q_value"];
-  const rows = lastResults.results.map((r, i) => [
+  const rows = results.map((r, i) => [
     i+1, r.accession, r.library_strategy, r.antibody_target || "",
     r.genotype_strain || "", r.developmental_stage || "",
     r.overlap_count, r.fold_enrichment.toFixed(4),
     r.p_value.toExponential(4), r.q_value.toExponential(4),
   ]);
-  const csv = [hdr.join(","), ...rows.map(r => r.join(","))].join("\n");
-  const blob = new Blob([csv], {type: "text/csv"});
+  return [hdr, ...rows].map(r => r.map(csvField).join(",")).join("\n");
+}
+
+function downloadCsv() {
+  if (!lastResults) return;
+  const blob = new Blob([resultsCsv(lastResults.results)], {type: "text/csv"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "enrichment.csv";
   a.click();
 }
 
-init();
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {escapeHtml, rowHtml, summaryText, csvField, resultsCsv};   // node unit tests
+} else {
+  init();
+}
