@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build data/catalog.json for the kkmm web UI (web/).
+"""Build data/catalog.json for the Zenigoke Catalog web UI (web/).
 
 Reads the catalog DB (db/kknmsmd.db, read-only; QC flags from its sample_qc
 table), the cached study metadata in meta/*.tsv (ENA + NCBI, refreshable with
@@ -88,7 +88,7 @@ EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
 
 def _http(url: str, data: dict | None = None, timeout: int = 90) -> bytes:
     body = urllib.parse.urlencode(data).encode() if data else None
-    req = urllib.request.Request(url, data=body, headers={"User-Agent": "kkmm-catalog/0.2"})
+    req = urllib.request.Request(url, data=body, headers={"User-Agent": "zenigoke-catalog/0.2"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
@@ -483,9 +483,9 @@ def main(argv: list[str] | None = None) -> int:
 
     g = genome_block(probe=not args.no_probe)
     catalog = {
-        "schema": "kkmm-catalog-index/0.2-beta",
+        "schema": "zenigoke-catalog-index/0.2",
         "generated": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "release": "2026-10 beta",
+        "release": "2026-10",
         "data_base": DATA_BASE,
         "genome": g,
         "qc_rules": QC_RULES_DOC,

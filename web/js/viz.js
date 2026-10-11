@@ -1,4 +1,4 @@
-/* kkmm web UI: overview visualisations (matrix presets, year trend,
+/* Zenigoke Catalog web UI: overview visualisations (matrix presets, year trend,
  * source map). Plain SVG strings, no libraries.
  *
  * Every clickable mark carries data-f='{"facet":["value",...]}' (a filter

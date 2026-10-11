@@ -1,4 +1,4 @@
-/* kkmm web UI. Plain CSS, no build step. */
+/* Zenigoke Catalog web UI. Plain CSS, no build step. */
 :root {
   --bg: #f6f7f5;
   --surface: #ffffff;
@@ -56,7 +56,6 @@ code, .mono { font-family: var(--mono); font-size: .92em; }
 .cart-link:hover { text-decoration: none; background: var(--surface-2); }
 .cart-link.active { border-color: var(--brand); }
 .pill { background: var(--brand); color: var(--brand-ink); border-radius: 999px; padding: 0 .5rem; font-size: .8rem; font-weight: 600; min-width: 1.5rem; text-align: center; }
-.mockbar { background: var(--warn-bg); color: var(--warn); text-align: center; font-size: .8rem; padding: .25rem 1rem; }
 
 main { max-width: 1400px; margin: 0 auto; padding: 1rem; outline: none; }
 
@@ -310,15 +309,15 @@ svg.map .place.zero circle { fill: none; stroke: var(--muted); stroke-dasharray:
 .mx-list { list-style: none; padding: 0; margin: .5rem 0 0; display: grid; gap: .45rem; }
 
 @media (max-width: 1100px) {
-  .ov-grid { grid-template-columns: 1fr; }
-  .ov-side { grid-template-columns: 1fr 1fr; grid-template-rows: auto; }
+  .ov-grid { grid-template-columns: minmax(0, 1fr); }
+  .ov-side { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto; }
 }
 @media (max-width: 900px) {
-  .mx-page { grid-template-columns: 1fr; }
+  .mx-page { grid-template-columns: minmax(0, 1fr); }
   .mx-side { position: static; max-height: none; }
 }
 @media (max-width: 720px) {
-  .ov-side { grid-template-columns: 1fr; }
-  .mapwrap { grid-template-columns: 1fr; }
+  .ov-side { grid-template-columns: minmax(0, 1fr); }
+  .mapwrap { grid-template-columns: minmax(0, 1fr); }
   .placelist { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 }

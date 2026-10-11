@@ -1,4 +1,4 @@
-/* kkmm web UI: pure logic (no DOM).
+/* Zenigoke Catalog web UI: pure logic (no DOM).
  *
  * Loaded by index.html as a classic script (exposes window.ZCore) and by
  * test/core.test.js under node (module.exports). Everything that turns the
@@ -184,11 +184,11 @@
     const nExp = new Set(list.map(x => x.s.acc)).size;
     const lines = [
       "#!/usr/bin/env bash",
-      `# kkmm catalog download script: ${list.length} files from ${nExp} experiments (${total})`,
+      `# Zenigoke Catalog download script: ${list.length} files from ${nExp} experiments (${total})`,
       `# Release ${catalog.release}; genome ${catalog.genome.id}. Generated ${new Date().toISOString()}`,
       "# Usage: bash download.sh [target_dir]   (re-run to resume; curl -C - continues partial files)",
       "set -euo pipefail",
-      'DEST="${1:-kkmm_' + safeName(catalog.genome.id) + '}"',
+      'DEST="${1:-zenigoke_' + safeName(catalog.genome.id) + '}"',
       'mkdir -p "$DEST" && cd "$DEST"',
       "fetch() {  # fetch <url> <relative path> <expected bytes | ->",
       '  if [ -f "$2" ] && [ "$3" != "-" ] && [ "$(wc -c < "$2" | tr -d \' \')" = "$3" ]; then echo "skip $2 (complete)"; return 0; fi',
@@ -338,7 +338,7 @@
     const locus = (opts && opts.locus) || catalog.genome.default_locus;
     const L = [
       '<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
-      `<!-- kkmm catalog ${xmlEsc(catalog.release)}: ${tracks.length} tracks. Open in IGV desktop: File > Open Session... -->`,
+      `<!-- Zenigoke Catalog ${xmlEsc(catalog.release)}: ${tracks.length} tracks. Open in IGV desktop: File > Open Session... -->`,
       `<Session genome="${xmlEsc(genomeRef(catalog, (opts && opts.genomeSrc) || defaultGenomeSrc(catalog)) || catalog.genome.json)}" locus="${xmlEsc(locus)}" version="8">`,
       "  <Resources>",
     ];

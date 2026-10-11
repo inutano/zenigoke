@@ -51,9 +51,10 @@ git push origin main                          # → GitHub Actions rebuilds Page
 
 The workflow downloads `db/kknmsmd.db` from S3 at build time, so the DB on S3 is the source of truth for the published site.
 
-## Web UI beta (`web/`, on S3)
+## Web UI (`web/`, on S3)
 
-The new kkmm interface is published from the same bucket as the data:
+The new web interface is published from the same bucket as the data, under
+`beta/`:
 
 ```bash
 AWS_PROFILE=chiba-dsc bash deploy/aws/02-sync-data.sh      # outputs + DB first

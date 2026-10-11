@@ -1,4 +1,4 @@
-/* kkmm web UI: UI layer. Hash-routed single page, no build step.
+/* Zenigoke Catalog web UI: UI layer. Hash-routed single page, no build step.
  *
  *   #/            overview (matrix, trend, map) + search: facets + results table
  *   #/matrix      data matrix with presets
@@ -14,9 +14,9 @@
   const Z = window.ZCore;
   const LIVE = "https://inutano.github.io/zenigoke/";
   const IGVJS_SRC = "https://cdn.jsdelivr.net/npm/igv@3.8.9/dist/igv.min.js";  // not on cdnjs
-  const CART_KEY = "kkmm.cart.v1";
+  const CART_KEY = "zenigoke.cart.v1";
   const V = window.ZViz;
-  const OV_KEY = "kkmm.overview";
+  const OV_KEY = "zenigoke.overview";
   const MAX_IGV_TRACKS = 60;
 
   let CAT = null;
@@ -604,7 +604,7 @@
         <tbody>${fileRows}</tbody></table></div>
       </section>` : ""}
       <section class="card"><h2>How to cite</h2>
-        <p class="small">Please cite the original study${st.pmid ? ` (${esc(st.citation ? st.citation.split(".")[0] : "")}, PMID ${esc(st.pmid)})` : ""} and the kkmm catalog (release ${esc(CAT.release)}). Reference genome: MarpolBase MpTak v7.1.</p>
+        <p class="small">Please cite the original study${st.pmid ? ` (${esc(st.citation ? st.citation.split(".")[0] : "")}, PMID ${esc(st.pmid)})` : ""} and the Zenigoke Catalog (release ${esc(CAT.release)}). Reference genome: MarpolBase MpTak v7.1.</p>
       </section>
       ${sameStudy.length || sameTarget.length ? `
       <section class="card"><h2>Related experiments</h2>
@@ -625,7 +625,7 @@
     const u = $("[data-act=urls]", view);
     if (u) u.addEventListener("click", () => copyText(Z.filesTxt(CAT, all)));
     const sh = $("[data-act=sh]", view);
-    if (sh) sh.addEventListener("click", () => download(`kkmm_${s.acc}_download.sh`, Z.downloadSh(CAT, all, {}), "text/x-shellscript"));
+    if (sh) sh.addEventListener("click", () => download(`zenigoke_${s.acc}_download.sh`, Z.downloadSh(CAT, all, {}), "text/x-shellscript"));
   }
 
   // --------------------------------------------------------------- cart
@@ -732,27 +732,27 @@
     const stamp = new Date().toISOString().slice(0, 10);
     switch (tab) {
       case "sh": return {
-        name: `kkmm_download_${stamp}.sh`, type: "text/x-shellscript",
+        name: `zenigoke_download_${stamp}.sh`, type: "text/x-shellscript",
         text: Z.downloadSh(CAT, list, { naming: cartOpts.naming }),
-        hint: "Run <code>bash kkmm_download_*.sh [dir]</code>. Needs only curl; re-running resumes partial downloads.",
+        hint: "Run <code>bash zenigoke_download_*.sh [dir]</code>. Needs only curl; re-running resumes partial downloads.",
       };
       case "meta": return {
-        name: `kkmm_metadata_${stamp}.tsv`, type: "text/tab-separated-values",
+        name: `zenigoke_metadata_${stamp}.tsv`, type: "text/tab-separated-values",
         text: Z.metadataTsv(CAT, samples),
         hint: "One row per experiment: curated sample attributes, study / PMID, QC metrics and flag. Opens in Excel or R (<code>read.delim</code>).",
       };
       case "manifest": return {
-        name: `kkmm_files_${stamp}.tsv`, type: "text/tab-separated-values",
+        name: `zenigoke_files_${stamp}.tsv`, type: "text/tab-separated-values",
         text: Z.manifestTsv(CAT, list, { naming: cartOpts.naming }),
         hint: "One row per file: type, format, size, local path and URL. Join with the metadata TSV on <code>accession</code>.",
       };
       case "session": return {
-        name: `kkmm_igv_session_${stamp}.xml`, type: "application/xml",
+        name: `zenigoke_igv_session_${stamp}.xml`, type: "application/xml",
         text: Z.igvSessionXml(CAT, tracks, { locus: CAT.genome.default_locus }),
         hint: "In IGV desktop: <i>File › Open Session…</i> and pick this file. Works without the IGV port and in any browser.",
       };
       default: return {
-        name: `kkmm_files_${stamp}.txt`, type: "text/plain",
+        name: `zenigoke_files_${stamp}.txt`, type: "text/plain",
         text: Z.filesTxt(CAT, list),
         hint: "One URL per line (same convention as ENCODE). E.g. <code>xargs -n 1 -P 4 curl -fLO &lt; files.txt</code> or <code>wget -i files.txt</code>.",
       };
@@ -844,7 +844,7 @@
   function renderAbout(view) {
     view.innerHTML = `<h1>About</h1>
       <div class="detail-grid">
-        <section class="card"><h2>What is kkmm?</h2>
+        <section class="card"><h2>What is the Zenigoke Catalog?</h2>
           <p>A catalog of public <i>Marchantia polymorpha</i> ChIP-seq, ATAC-seq and bisulfite-seq data from SRA, re-processed with one pipeline against MpTak v7.1, in the spirit of ChIP-Atlas.</p>
           <p class="small">Release ${esc(CAT.release)} · ${CAT.samples.length} experiments · ${Object.keys(CAT.studies).length} studies.</p></section>
         <section class="card"><h2>How to cite &amp; data use</h2>
@@ -992,7 +992,7 @@
     const open = $("#igv-dialog").open;
     const locus = (open && $("#igv-locus").value.trim()) || CAT.genome.default_locus;
     const genomeSrc = open ? $("#igv-genome-src").value : Z.defaultGenomeSrc(CAT);
-    download(`kkmm_igv_session_${new Date().toISOString().slice(0, 10)}.xml`,
+    download(`zenigoke_igv_session_${new Date().toISOString().slice(0, 10)}.xml`,
       Z.igvSessionXml(CAT, igvCtx.tracks, { locus, genomeSrc }), "application/xml");
   }
 
@@ -1021,11 +1021,11 @@
     const cont = $("#igv-js-container");
     const maxTracks = 16;
     const tracks = igvCtx.tracks.slice(0, maxTracks);
-    // Same origin as the data (beta hosted in the bucket) needs no CORS.
+    // Same origin as the data (page hosted in the bucket) needs no CORS.
     const corsOk = /\.github\.io$/.test(location.hostname) || location.origin === "http://localhost:8088" ||
       location.origin === new URL(CAT.data_base).origin;
     note.innerHTML = `Quick look with <a href="https://github.com/igvteam/igv.js" target="_blank" rel="noopener">igv.js</a>: ${tracks.length} of ${igvCtx.tracks.length} tracks streamed from S3.` +
-      (CAT.genome.hosted.fasta ? "" : ` Genome: UCSC GenArk ${esc(CAT.genome.genark.accession)} (same assembly; kkmm FASTA/GFF not hosted yet).`) +
+      (CAT.genome.hosted.fasta ? "" : ` Genome: UCSC GenArk ${esc(CAT.genome.genark.accession)} (same assembly; the catalog FASTA/GFF is not hosted yet).`) +
       (corsOk ? "" : ` <b>S3 CORS currently allows only https://*.github.io and http://localhost:8088; tracks may not load from this address.</b>`);
     cont.innerHTML = `<p class="muted" style="padding:1rem">Loading igv.js…</p>`;
     try {

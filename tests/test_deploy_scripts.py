@@ -196,7 +196,7 @@ BETA = REPO / "deploy" / "aws" / "05-sync-beta.sh"
 
 def _run_beta(tmp_path, *args):
     env = _stubs(tmp_path, ["aws"])
-    env["KKMM_SKIP_BUILD"] = "1"      # never rebuild the real web/data/catalog.json in a test
+    env["ZENIGOKE_SKIP_BUILD"] = "1"      # never rebuild the real web/data/catalog.json in a test
     return env, subprocess.run(["bash", str(BETA), *args], env=env, capture_output=True, text=True,
                                timeout=60)
 
