@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>Bundle — zenigoke</title>
+<link rel='stylesheet' href='assets/style.css'>
+</head>
+<body>
+<nav>
+<a href="index.html">Matrix</a>
+<a href="browse.html">Browse</a>
+<a href="strategy/chipseq.html">ChIP-Seq</a>
+<a href="strategy/atacseq.html">ATAC-Seq</a>
+<a href="strategy/bsseq.html">BS-Seq</a>
+<a href="summary.html">Summary</a>
+<a href="methods.html">Methods</a>
+<a href="enrichment.html">Enrichment</a>
+<a href="about.html">About</a>
+</nav>
+<div class='container'>
+  <h1 id='bundle-title'>Bundle</h1>
+  <p class='subtitle' id='bundle-subtitle'></p>
+  <div class='card'>
+    <h2>Tracks</h2>
+    <table id='tracks-table' class='kv'><thead>
+      <tr><th>name</th><th>type</th><th>color</th><th>file</th></tr>
+    </thead><tbody></tbody></table>
+  </div>
+  <div class='card'>
+    <h2>Actions</h2>
+    <button id='igv-btn'>&#9654; Send to IGV</button>
+    <span id='igv-status' role='status' aria-live='polite'></span>
+  </div>
+</div>
+<script>window.ZENIGOKE_DATA_BASE='https://zenigoke-catalog-dsc.s3.ap-northeast-1.amazonaws.com/';</script>
+<script src='assets/igv.js' defer></script>
+<script src='assets/matrix.js' defer></script>
+<script>
+// Wait until igv.js (ZenigokeIGV) and matrix.js (resolveStrategy) are loaded.
+// Build the track list from URL params and render.
+function _esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function _initBundle() {
+  const params = new URLSearchParams(location.search);
+  const accs = (params.get('acc') || '').split(',').filter(Boolean);
+  const q = params.get('q') || '1e-10';
+  const groupSpec = params.get('g') || '';
+  if (accs.length === 0) {
+    document.getElementById('bundle-subtitle').textContent = 'No accessions in URL.';
+    return;
+  }
+
+  // Parse the optional group spec: "label1:a+b;label2:c+d"
+  const groups = [];
+  const palette = ["#3060a0","#a04030","#308050","#a0a030","#603090","#308090","#a07030","#7060a0"];
+  if (groupSpec) {
+    for (const part of groupSpec.split(';')) {
+      // Labels such as "ChIP:H3K27me3 × WT" contain ':'; accessions never do,
+      // so split on the last one.
+      const k = part.lastIndexOf(':');
+      if (k < 0) continue;
+      const label = part.slice(0, k), accStr = part.slice(k + 1);
+      if (!accStr) continue;
+      groups.push({label: label || '?', accessions: accStr.split('+').filter(Boolean)});
+    }
+  } else {
+    groups.push({label: 'samples', accessions: accs});
+  }
+
+  // ZenigokeIGV lives in igv.js, resolveStrategy in matrix.js. Both are
+  // deferred scripts; if either hasn't finished loading yet, retry.
+  if (!window.ZenigokeIGV || !window.resolveStrategy) {
+    setTimeout(_initBundle, 50);
+    return;
+  }
+
+  const tracks = [];
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
+    const color = palette[i % palette.length];
+    const cellLike = {x: g.label.split(' × ')[0] || '', y: g.label.split(' × ')[1] || ''};
+    const strat = resolveStrategy(cellLike);
+    for (const acc of g.accessions) {
+      const ts = ZenigokeIGV.tracksForAccession(acc, {strategy: strat, q_cutoff: q}, color, window.ZENIGOKE_DATA_BASE || '');
+      tracks.push(...ts);
+    }
+  }
+
+  document.getElementById('bundle-title').textContent = 'Bundle (' + accs.length + ' samples)';
+  document.getElementById('bundle-subtitle').textContent = tracks.length + ' tracks · q < ' + q;
+  const tbody = document.querySelector('#tracks-table tbody');
+  for (const t of tracks) {
+    const row = document.createElement('tr');
+    const fname = t.url.split('/').pop();
+    row.innerHTML = '<td>' + _esc(t.name) + '</td>' +
+      '<td>' + _esc(t.format) + '</td>' +
+      '<td><span style="color:' + t.color + '">&#9608;</span></td>' +
+      '<td><a href="' + _esc(t.url) + '">' + _esc(fname) + '</a></td>';
+    tbody.appendChild(row);
+  }
+  const status = document.getElementById('igv-status');
+  document.getElementById('igv-btn').onclick = () => {
+    if (tracks.length === 0) { status.textContent = 'No tracks to send.'; return; }
+    status.textContent = 'Loading into IGV…';
+    ZenigokeIGV.send(tracks).then(r => { status.textContent = r.message; });
+  };
+}
+_initBundle();
+</script>
+
+</body>
+</html>
